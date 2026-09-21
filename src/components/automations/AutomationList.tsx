@@ -33,6 +33,8 @@ import {
   FileText,
   AlertTriangle,
   Zap,
+  Loader2,
+  PlayCircle,
 } from "lucide-react";
 import type { AutomationWithResume } from "@/models/automation.model";
 import { isRetiredBoard } from "@/models/automation.model";
@@ -82,6 +84,28 @@ export function AutomationList({
       onRefresh();
     } else {
       toastError(result.message);
+    }
+  };
+
+  const handleRunNow = async (id: string) => {
+    setLoadingAction(id);
+
+    try {
+      const response = await fetch(`/api/automations/${id}/run`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        toastError(data.message || "Failed to start automation");
+        return;
+      }
+
+      toastSuccess("Automation started. Open it to follow progress.");
+    } catch {
+      toastError("Failed to start automation");
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -302,6 +326,21 @@ export function AutomationList({
                         Resume
                       </DropdownMenuItem>
                     ))}
+                  {!retired && (
+                    <DropdownMenuItem
+                      onClick={() => handleRunNow(automation.id)}
+                      disabled={
+                        resumeMissing || automation.status === "paused"
+                      }
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <PlayCircle className="h-4 w-4 mr-2" />
+                      )}
+                      Run Now
+                    </DropdownMenuItem>
+                  )}
                   {!retired && (
                     <>
                       <DropdownMenuItem onClick={() => onEdit(automation)}>

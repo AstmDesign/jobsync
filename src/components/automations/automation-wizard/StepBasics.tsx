@@ -28,12 +28,12 @@ export function StepBasics({
 }: {
   form: UseFormReturn<CreateAutomationInput>;
 }) {
-  // The Select only lets users pick greenhouse/lever/ashby — those are the
-  // only slugs `automation.schema.ts` accepts and the only ones with a real
-  // scraper wired up. Everything else from the catalog (LinkedIn, Indeed,
-  // etc.) is shown disabled as "Coming soon" so the list still reflects
-  // what's manageable from the Job Boards page, without letting users submit
-  // a board that can't actually run yet.
+  // The Select lets users pick any board in ATS_BOARDS — the six with a real
+  // scraper wired up (Greenhouse/Lever/Ashby by company watchlist, Indeed/
+  // Glassdoor/LinkedIn by keyword search). Anything else from the catalog is
+  // shown disabled as "Coming soon" so the list still reflects what's
+  // manageable from the Job Boards page, without letting users submit a
+  // board that can't actually run yet.
   const [comingSoonBoards, setComingSoonBoards] = useState<
     JobBoardCatalogEntry[]
   >([]);
@@ -87,6 +87,13 @@ export function StepBasics({
                 </SelectItem>
                 <SelectItem value="lever">Lever (company boards)</SelectItem>
                 <SelectItem value="ashby">Ashby (company boards)</SelectItem>
+                <SelectItem value="indeed">Indeed (keyword search)</SelectItem>
+                <SelectItem value="glassdoor">
+                  Glassdoor (keyword search)
+                </SelectItem>
+                <SelectItem value="linkedin">
+                  LinkedIn (keyword search)
+                </SelectItem>
                 {comingSoonBoards.map((board) => (
                   <SelectItem key={board.id} value={board.slug} disabled>
                     {board.label} (coming soon)

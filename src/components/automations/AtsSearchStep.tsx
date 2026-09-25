@@ -2,6 +2,7 @@
 
 import { APP_CONSTANTS } from "@/lib/constants";
 import type { JobBoard, LeverCompany } from "@/models/automation.model";
+import { isQueryBoard } from "@/models/automation.model";
 import { CompanyPicker } from "./ats-search-step/CompanyPicker";
 import { TargetingFields } from "./ats-search-step/TargetingFields";
 import { RunOptionsFields } from "./ats-search-step/RunOptionsFields";
@@ -17,6 +18,21 @@ interface AtsSearchStepProps {
 
 export function AtsSearchStep({ provider, value, onChange }: AtsSearchStepProps) {
   const companies = value.companies ?? [];
+
+  // Indeed/Glassdoor/LinkedIn have no per-company API — there's nothing for
+  // CompanyPicker to search, so the step is keyword+location search only.
+  if (isQueryBoard(provider)) {
+    return (
+      <div className="space-y-5">
+        <p className="text-sm text-muted-foreground">
+          This board has no company watchlist — it&apos;s searched directly by
+          keyword and location against the site&apos;s own search results.
+        </p>
+        <TargetingFields value={value} onChange={onChange} mode="query" />
+        <RunOptionsFields value={value} onChange={onChange} />
+      </div>
+    );
+  }
 
   const addCompany = (company: LeverCompany) => {
     if (companies.some((c) => c.token === company.token)) return;

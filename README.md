@@ -5,6 +5,7 @@
 <p align="center">
   <a href="https://demo.jobsync.ca">Live Demo</a> ·
   <a href="#quick-start">Quick Start</a> ·
+  <a href="#technology-stack">Technology Stack</a> ·
   <a href="#ai-assistant-in-app-chat">AI Assistant</a> ·
   <a href="#mcp-server-ai-agent-integration">MCP Setup</a> ·
   <a href="https://github.com/Gsync/jobsync/wiki">Help</a>
@@ -19,6 +20,30 @@
 JobSync is a free, open-source companion for your job search: track applications, manage and export resumes, and ask a built-in AI assistant to review a resume, match it against a job, write a cover letter, or add a job from a posting you paste in — all self-hosted on your own server, so your data stays under your control. AI features can run entirely locally via Ollama or through your choice of cloud provider, and JobSync's built-in MCP server lets AI agents like Claude Desktop add jobs and interview questions straight from your chat.
 
 ![App Snapshot](./screenshots/jobsync-dashboard.png?raw=true "Jobsync dashboard")
+
+## Technology Stack
+
+JobSync is a full-stack TypeScript application designed to run as a self-hosted Docker container.
+
+| Area | Technology | Version / details |
+|---|---|---|
+| Language | TypeScript | 5.x, strict type checking enabled |
+| Runtime | Node.js | 20.20.2 Alpine image |
+| Web framework | Next.js | 15.5.25, standalone production output |
+| UI framework | React | 19.2.4 with React Server Components enabled |
+| Styling | Tailwind CSS | 4.3.3 with PostCSS |
+| UI components | shadcn/ui and Radix UI | shadcn New York style with Radix primitives |
+| Database | SQLite | File-backed database at `/data/dev.db` by default |
+| ORM and migrations | Prisma | 6.19.0 and Prisma Client |
+| Authentication | Auth.js / NextAuth | 5.0.0-beta.32 |
+| AI integration | Vercel AI SDK | AI chat, structured output, and provider integrations |
+| AI providers | Ollama, OpenAI, Google Gemini, DeepSeek, OpenRouter | Local and cloud model support |
+| Agent integration | Model Context Protocol (MCP) SDK | 1.30.0 |
+| Rich text editing | Tiptap | 2.10.3 |
+| Charts | Nivo | 0.99.0 |
+| PDF and document handling | React PDF, Mammoth, unpdf | PDF export plus PDF and DOCX resume import |
+| Testing | Vitest, Testing Library, Playwright | Unit/component tests and Chromium end-to-end tests |
+| Deployment | Docker and Docker Compose | Port `3737`, persistent `/data` volume |
 
 ## Key Features
 - **Application Tracker:** Keep a detailed record of all your job applications, including company details, job titles, application dates, and current status.

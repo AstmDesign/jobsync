@@ -3,8 +3,16 @@ import { APP_CONSTANTS } from "@/lib/constants";
 // Deep-import (NOT the barrel) — utils.ts is pure; the barrel pulls scraper
 // network code into the client bundle via this file's client consumers.
 import { ATS_TOKEN_REGEX } from "@/lib/scraper/utils";
+import { QUERY_BOARDS } from "./automation.model";
 
-export const JobBoardSchema = z.enum(["greenhouse", "lever", "ashby"]);
+export const JobBoardSchema = z.enum([
+  "greenhouse",
+  "lever",
+  "ashby",
+  "indeed",
+  "glassdoor",
+  "linkedin",
+]);
 
 export const AutomationStatusSchema = z.enum(["active", "paused"]);
 
@@ -62,11 +70,54 @@ export const AshbySourceConfigSchema = GreenhouseSourceConfigSchema.extend({
     .max(APP_CONSTANTS.ATS_MAX_COMPANIES),
 });
 
+// Query-based boards search directly by keyword — no company/token concept.
+export const QueryBoardSourceConfigSchema = z.object({
+  keywords: z.array(z.string().min(1).max(100)).min(1),
+  locations: z.array(z.string().min(1).max(100)).optional(),
+  strictLocation: z.boolean().optional(),
+  topK: z.number().int().min(1).max(APP_CONSTANTS.ATS_LISTING_CAP).optional(),
+  saveUnanalyzed: z.boolean().optional(),
+});
+
 export const SourceConfigSchema = z.object({
   greenhouse: GreenhouseSourceConfigSchema.optional(),
   lever: LeverSourceConfigSchema.optional(),
   ashby: AshbySourceConfigSchema.optional(),
+  indeed: QueryBoardSourceConfigSchema.optional(),
+  glassdoor: QueryBoardSourceConfigSchema.optional(),
+  linkedin: QueryBoardSourceConfigSchema.optional(),
 });
+
+// Shared by create/update: company boards need >=1 company; query boards
+// need >=1 keyword (that's the actual search term, not just a filter).
+function validateSourceConfig(
+  data: { jobBoard?: string; sourceConfig?: z.infer<typeof SourceConfigSchema> },
+  ctx: z.RefinementCtx,
+) {
+  if (!data.jobBoard) return;
+  const isQueryBoard = (QUERY_BOARDS as string[]).includes(data.jobBoard);
+  const config = data.sourceConfig?.[data.jobBoard as keyof typeof data.sourceConfig];
+
+  if (isQueryBoard) {
+    const keywords = (config as { keywords?: string[] } | undefined)?.keywords ?? [];
+    if (keywords.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sourceConfig", data.jobBoard, "keywords"],
+        message: "Add at least one search keyword",
+      });
+    }
+  } else {
+    const companies = (config as { companies?: unknown[] } | undefined)?.companies ?? [];
+    if (companies.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sourceConfig", data.jobBoard, "companies"],
+        message: "Select at least one company",
+      });
+    }
+  }
+}
 
 export const CreateAutomationSchema = z
   .object({
@@ -79,16 +130,7 @@ export const CreateAutomationSchema = z
     matchThreshold: z.number().min(0).max(100),
     scheduleHour: z.number().min(0).max(23),
   })
-  .superRefine((data, ctx) => {
-    const companies = data.sourceConfig?.[data.jobBoard]?.companies ?? [];
-    if (companies.length < 1) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["sourceConfig", data.jobBoard, "companies"],
-        message: "Select at least one company",
-      });
-    }
-  });
+  .superRefine(validateSourceConfig);
 
 export const UpdateAutomationSchema = z
   .object({
@@ -101,17 +143,7 @@ export const UpdateAutomationSchema = z
     matchThreshold: z.number().min(0).max(100).optional(),
     scheduleHour: z.number().min(0).max(23).optional(),
   })
-  .superRefine((data, ctx) => {
-    if (!data.jobBoard) return;
-    const companies = data.sourceConfig?.[data.jobBoard]?.companies ?? [];
-    if (companies.length < 1) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["sourceConfig", data.jobBoard, "companies"],
-        message: "Select at least one company",
-      });
-    }
-  });
+  .superRefine(validateSourceConfig);
 
 export type CreateAutomationInput = z.infer<typeof CreateAutomationSchema>;
 export type UpdateAutomationInput = z.infer<typeof UpdateAutomationSchema>;

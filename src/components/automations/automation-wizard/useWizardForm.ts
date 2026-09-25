@@ -13,6 +13,7 @@ import {
 } from "@/actions/automation.actions";
 import { toastSuccess, toastError } from "@/lib/toast";
 import type { AutomationWithResume, JobBoard } from "@/models/automation.model";
+import { isQueryBoard } from "@/models/automation.model";
 import type { AtsConfigValue } from "../AtsSearchStep";
 import {
   EMPTY_ATS,
@@ -109,7 +110,9 @@ export function useWizardForm({
       case 0:
         return (formValues.name?.trim().length ?? 0) > 0;
       case 1:
-        return (atsConfig.companies?.length ?? 0) > 0;
+        return isQueryBoard(atsKey)
+          ? (atsConfig.keywords?.length ?? 0) > 0
+          : (atsConfig.companies?.length ?? 0) > 0;
       case 2:
         return (formValues.resumeId?.length ?? 0) > 0;
       case 3:

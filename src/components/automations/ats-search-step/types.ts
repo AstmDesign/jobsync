@@ -1,9 +1,20 @@
-import type { LeverSourceConfig } from "@/models/automation.model";
+import type { LeverCompany } from "@/models/automation.model";
 
-// The step is provider-agnostic; it edits the canonical Lever config shape — a
-// superset of Greenhouse's, where the extra per-company `host` is unused and
-// UI-invisible for Greenhouse.
-export type AtsConfigValue = LeverSourceConfig;
+// The step is provider-agnostic; it edits a superset shape that covers both
+// company-board configs (Greenhouse/Lever/Ashby — `companies` populated,
+// `keywords` an optional ranking filter) and query-board configs (Indeed/
+// Glassdoor/LinkedIn — no `companies`, `keywords` is the required search
+// query instead). Every field is optional here so one value type works for
+// both; each sub-component treats absence as "empty" via `?? []`/`?? false`.
+export type AtsConfigValue = {
+  companies?: LeverCompany[];
+  targetTitles?: string[];
+  keywords?: string[];
+  locations?: string[];
+  strictLocation?: boolean;
+  topK?: number;
+  saveUnanalyzed?: boolean;
+};
 
 export type EntityOption = { id: string; label: string; value: string };
 

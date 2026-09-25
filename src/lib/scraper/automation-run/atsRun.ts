@@ -32,16 +32,21 @@ export async function runAtsRun(
   const label = `[${provider.label}]`;
   const config = parseAtsConfig(automation.sourceConfig, automation.jobBoard);
 
-  if (!config || config.companies.length === 0) {
+  const isQueryMode = provider.mode === "query";
+  const hasSearchInput = isQueryMode
+    ? (config?.keywords.length ?? 0) > 0
+    : (config?.companies.length ?? 0) > 0;
+
+  if (!config || !hasSearchInput) {
     automationLogger.log(
       automation.id,
       "error",
-      `${label} No companies configured`,
+      isQueryMode ? `${label} No search keywords configured` : `${label} No companies configured`,
     );
     automationLogger.endRun(automation.id);
     return await finalizeRun(runId, {
       status: "failed",
-      errorMessage: "no_companies",
+      errorMessage: isQueryMode ? "no_keywords" : "no_companies",
       jobsSearched: 0,
       jobsDeduplicated: 0,
       jobsProcessed: 0,
@@ -51,27 +56,48 @@ export async function runAtsRun(
   }
 
   try {
-    automationLogger.log(
-      automation.id,
-      "info",
-      `${label} Fetching ${config.companies.length} companies...`,
-    );
+    let jobs;
+    let searchTargetDescription: string;
 
-    const { jobs, errors } = await provider.search(config.companies);
-
-    for (const err of errors) {
+    if (provider.mode === "query") {
       automationLogger.log(
         automation.id,
-        "warning",
-        `${label} Board '${err.token}' ${err.reason} — skipped`,
+        "info",
+        `${label} Searching for "${config.keywords.join(", ")}"${config.locations.length > 0 ? ` in ${config.locations.join(", ")}` : ""}...`,
       );
+      const result = await provider.search({
+        keywords: config.keywords,
+        locations: config.locations,
+        topK: config.topK,
+      });
+      jobs = result.jobs;
+      for (const err of result.errors) {
+        automationLogger.log(automation.id, "warning", `${label} ${err.reason} — skipped`);
+      }
+      searchTargetDescription = `search "${config.keywords.join(", ")}"`;
+    } else {
+      automationLogger.log(
+        automation.id,
+        "info",
+        `${label} Fetching ${config.companies.length} companies...`,
+      );
+      const result = await provider.search(config.companies);
+      jobs = result.jobs;
+      for (const err of result.errors) {
+        automationLogger.log(
+          automation.id,
+          "warning",
+          `${label} Board '${err.token}' ${err.reason} — skipped`,
+        );
+      }
+      searchTargetDescription = `${config.companies.length} boards`;
     }
 
     const jobsSearched = jobs.length;
     automationLogger.log(
       automation.id,
       "success",
-      `${label} Fetched ${jobsSearched} jobs across ${config.companies.length} boards`,
+      `${label} Fetched ${jobsSearched} jobs across ${searchTargetDescription}`,
       { jobsSearched },
     );
 

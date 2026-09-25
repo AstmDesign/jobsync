@@ -31,6 +31,23 @@ WORKDIR /app
 # Set environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# System Chromium for the Indeed/Glassdoor/LinkedIn scrapers (src/lib/scraper/
+# browser.ts). Playwright's own managed Chromium build is glibc-only and
+# won't run on Alpine's musl libc, so we install the distro package instead
+# and point Playwright at it via CHROMIUM_EXECUTABLE_PATH. This adds real
+# weight to the image (~300MB+) and a headless Chromium's worth of memory use
+# at scrape time — acceptable for a single-container deploy, but worth
+# knowing if you're watching image size or RAM.
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+ENV CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 -h /home/nextjs nextjs
 

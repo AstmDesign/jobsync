@@ -11,7 +11,19 @@ export type AutomationRunStatus =
   | "rate_limited"
   | "cancelled";
 export type DiscoveryStatus = "new" | "accepted" | "dismissed";
-export type JobBoard = "greenhouse" | "lever" | "ashby";
+// "Company board" providers (greenhouse/lever/ashby) are watched by
+// name+token against a per-company ATS API. "Query" providers (indeed/
+// glassdoor/linkedin) have no per-company API — they're searched directly by
+// keywords+location via a headless-browser scraper instead. See
+// src/lib/scraper/ats/types.ts (AtsProvider.mode) for how the run pipeline
+// branches between the two.
+export type JobBoard =
+  | "greenhouse"
+  | "lever"
+  | "ashby"
+  | "indeed"
+  | "glassdoor"
+  | "linkedin";
 
 export interface GreenhouseCompany {
   name: string;
@@ -54,16 +66,43 @@ export interface AshbySourceConfig
   companies: AshbyCompany[];
 }
 
+// Query-based providers have no company/token concept — `keywords` is the
+// actual search query (not just a post-fetch ranking filter like it is for
+// the company-board providers above).
+export interface QueryBoardSourceConfig {
+  keywords: string[];
+  locations?: string[];
+  strictLocation?: boolean;
+  topK?: number;
+  saveUnanalyzed?: boolean;
+}
+
 export interface SourceConfig {
   greenhouse?: GreenhouseSourceConfig;
   lever?: LeverSourceConfig;
   ashby?: AshbySourceConfig;
+  indeed?: QueryBoardSourceConfig;
+  glassdoor?: QueryBoardSourceConfig;
+  linkedin?: QueryBoardSourceConfig;
 }
 
 // Plain, dependency-free board list. Do NOT import this from ats/registry.ts
 // (that pulls the network-calling search fns into client bundles). Both the
 // client-imported schema and the scheduler import it here.
-export const ATS_BOARDS: JobBoard[] = ["greenhouse", "lever", "ashby"];
+export const ATS_BOARDS: JobBoard[] = [
+  "greenhouse",
+  "lever",
+  "ashby",
+  "indeed",
+  "glassdoor",
+  "linkedin",
+];
+
+// Query-based boards (no company/token concept — see QueryBoardSourceConfig).
+export const QUERY_BOARDS: JobBoard[] = ["indeed", "glassdoor", "linkedin"];
+export function isQueryBoard(board: string): boolean {
+  return QUERY_BOARDS.includes(board as JobBoard);
+}
 
 // Boards that used to exist and were removed. Their Automation rows stay in
 // the database; the UI marks them retired and only offers pause/delete.

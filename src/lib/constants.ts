@@ -136,6 +136,29 @@ export const APP_CONSTANTS = {
   ASHBY_FETCH_TIMEOUT_MS: 25_000, // per-board AbortController timeout
   ASHBY_FETCH_CONCURRENCY: 5,
 
+  // Shared headless-browser scraping (Indeed/Glassdoor/LinkedIn — no public
+  // per-company API, so these navigate real search-result pages instead of
+  // calling a JSON endpoint). Deliberately conservative: one page at a time,
+  // no proxy rotation. Expect these three to be far more fragile than the
+  // fetch-based providers above — they break whenever the target site changes
+  // its markup, and can get rate-limited under frequent/heavy use.
+  QUERY_SCRAPER_NAV_TIMEOUT_MS: 30_000, // page.goto / waitForSelector budget
+  QUERY_SCRAPER_MAX_LOCATIONS: 3, // location terms searched per keyword
+  QUERY_SCRAPER_MAX_RESULTS_PER_SEARCH: 25, // job cards read per keyword+location page
+  QUERY_SCRAPER_PAGE_DELAY_MS: 1_500, // politeness delay between page loads
+  QUERY_SCRAPER_USER_AGENT:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+
+  // Indeed job source (no public API — search-results page scrape)
+  INDEED_SEARCH_URL: "https://www.indeed.com/jobs",
+
+  // Glassdoor job source (no public API — search-results page scrape)
+  GLASSDOOR_SEARCH_URL: "https://www.glassdoor.com/Job/jobs.htm",
+
+  // LinkedIn job source — guest (logged-out) search results only. No login
+  // automation: this app never stores or submits LinkedIn credentials.
+  LINKEDIN_SEARCH_URL: "https://www.linkedin.com/jobs/search",
+
   // MCP server settings
   MCP_DUPLICATE_WINDOW_DAYS: 30,
   MCP_TOKEN_EXPIRY_PRESETS: [30, 90, 365] as const,

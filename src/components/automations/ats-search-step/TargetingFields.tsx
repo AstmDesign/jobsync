@@ -13,11 +13,20 @@ import type { AtsConfigValue } from "./types";
 interface TargetingFieldsProps {
   value: AtsConfigValue;
   onChange: (next: AtsConfigValue) => void;
+  // Query-mode boards (Indeed/Glassdoor/LinkedIn) have no companies concept —
+  // keywords are the actual search query sent to the site, not just an
+  // optional post-fetch ranking filter, so the copy/validation below reflects
+  // that they're required rather than optional.
+  mode?: "company" | "query";
 }
 
-export function TargetingFields({ value, onChange }: TargetingFieldsProps) {
+export function TargetingFields({ value, onChange, mode = "company" }: TargetingFieldsProps) {
+  const isQuery = mode === "query";
+
   // Without target titles or keywords there is no signal to rank jobs against,
-  // so the relevance floor drops everything and nothing is saved.
+  // so the relevance floor drops everything and nothing is saved. For
+  // query-mode boards, keywords are also the search query itself, so their
+  // absence means the search can't even run.
   const noSignal =
     (value.targetTitles?.length ?? 0) === 0 &&
     (value.keywords?.length ?? 0) === 0;
@@ -42,10 +51,14 @@ export function TargetingFields({ value, onChange }: TargetingFieldsProps) {
       />
 
       <EntityStringChipInput
-        label="Keywords / skills"
+        label={isQuery ? "Search keywords (required)" : "Keywords / skills"}
         placeholder="e.g., React"
         noun="keyword"
-        description="Optional. Matched against title and description."
+        description={
+          isQuery
+            ? "Required. This is the actual search query sent to the job board."
+            : "Optional. Matched against title and description."
+        }
         values={value.keywords ?? []}
         onChange={(next) => onChange({ ...value, keywords: next })}
         loadOptions={async () => {
@@ -58,22 +71,37 @@ export function TargetingFields({ value, onChange }: TargetingFieldsProps) {
         }}
       />
 
-      {noSignal && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
-          <TriangleAlert className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>
-            Add at least one target title or keyword. Without them there is
-            nothing to rank jobs against, so this automation will save no
-            listings.
-          </span>
-        </div>
-      )}
+      {isQuery
+        ? (value.keywords?.length ?? 0) === 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+              <TriangleAlert className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Add at least one search keyword. This board is searched
+                directly by keyword — without one, there&apos;s nothing to
+                search for.
+              </span>
+            </div>
+          )
+        : noSignal && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+              <TriangleAlert className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Add at least one target title or keyword. Without them there is
+                nothing to rank jobs against, so this automation will save no
+                listings.
+              </span>
+            </div>
+          )}
 
       <EntityStringChipInput
         label="Locations"
         placeholder="e.g., Calgary, Seattle"
         noun="location"
-        description="Optional. Used only to filter results when the toggle below is on (not part of ranking)."
+        description={
+          isQuery
+            ? "Optional. Up to 3 — each is run as a separate search alongside every keyword."
+            : "Optional. Used only to filter results when the toggle below is on (not part of ranking)."
+        }
         values={value.locations ?? []}
         onChange={(next) => onChange({ ...value, locations: next })}
         loadOptions={async () => {

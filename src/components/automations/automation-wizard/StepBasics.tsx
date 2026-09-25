@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,12 +19,38 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import type { CreateAutomationInput } from "@/models/automation.schema";
+import type { JobBoardCatalogEntry } from "@/models/automation.model";
+import { ATS_BOARDS } from "@/models/automation.model";
+import { getJobBoardList } from "@/actions/jobBoard.actions";
 
 export function StepBasics({
   form,
 }: {
   form: UseFormReturn<CreateAutomationInput>;
 }) {
+  // The Select only lets users pick greenhouse/lever/ashby — those are the
+  // only slugs `automation.schema.ts` accepts and the only ones with a real
+  // scraper wired up. Everything else from the catalog (LinkedIn, Indeed,
+  // etc.) is shown disabled as "Coming soon" so the list still reflects
+  // what's manageable from the Job Boards page, without letting users submit
+  // a board that can't actually run yet.
+  const [comingSoonBoards, setComingSoonBoards] = useState<
+    JobBoardCatalogEntry[]
+  >([]);
+
+  useEffect(() => {
+    (async () => {
+      const result = await getJobBoardList(true);
+      if (result?.data) {
+        const extra = (result.data as JobBoardCatalogEntry[]).filter(
+          (board) =>
+            !ATS_BOARDS.includes(board.slug as (typeof ATS_BOARDS)[number]),
+        );
+        setComingSoonBoards(extra);
+      }
+    })();
+  }, []);
+
   return (
     <>
       <FormField
@@ -60,10 +87,17 @@ export function StepBasics({
                 </SelectItem>
                 <SelectItem value="lever">Lever (company boards)</SelectItem>
                 <SelectItem value="ashby">Ashby (company boards)</SelectItem>
+                {comingSoonBoards.map((board) => (
+                  <SelectItem key={board.id} value={board.slug} disabled>
+                    {board.label} (coming soon)
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <FormDescription>
-              Track specific companies&apos; job boards
+              Track specific companies&apos; job boards. More boards can be
+              added from the Job Boards page — they&apos;ll appear here as
+              &quot;coming soon&quot; until scraper support is built.
             </FormDescription>
             <FormMessage />
           </FormItem>

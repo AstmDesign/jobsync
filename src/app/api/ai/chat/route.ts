@@ -47,6 +47,15 @@ import {
 } from "@/lib/telemetry";
 import { addJobSettled, AGENT_CHAT_TERMINAL_TOOLS } from "@/models/agent.model";
 
+// Ollama 400s the whole request if "think" is sent to a model that doesn't
+// support a thinking channel at all (e.g. devstral-small-2: "does not support
+// thinking"). think:true was only ever tuned for qwen3.5's hybrid-reasoning
+// behavior (see providerOptions below) — it is not safe to send to every
+// Ollama model, so it is gated on name rather than sent unconditionally.
+function ollamaSupportsThinking(modelName: string): boolean {
+  return /qwen3|qwen2\.5|deepseek-r1/i.test(modelName);
+}
+
 // The one terminal tool whose stop condition is not "was it called" — see
 // addJobSettled.
 const addJobSettledStop: StopCondition<any> = ({ steps }) =>
@@ -275,7 +284,13 @@ export const POST = async (req: NextRequest) => {
             // think to false. With the thinking channel shut it deliberates in
             // the content channel, and content and a tool call are mutually
             // exclusive — add_job measured 1/7 with it off, 7/7 with it on.
-            ollama: { think: true, options: { num_ctx: APP_CONSTANTS.AGENT_CHAT_NUM_CTX } },
+            // Not every Ollama model has a thinking channel, though — sending
+            // think at all 400s those (see ollamaSupportsThinking above) — so
+            // it's only included for models known to support it.
+            ollama: {
+              ...(ollamaSupportsThinking(modelName) ? { think: true } : {}),
+              options: { num_ctx: APP_CONSTANTS.AGENT_CHAT_NUM_CTX },
+            },
           },
           // streamText's onFinish, not createUIMessageStream's: result is
           // scoped inside execute while the span ends in the outer onFinish.

@@ -43,6 +43,7 @@ export interface JobResponse {
   jobType: string;
   workplaceType?: string | null;
   createdAt: Date;
+  discoveredAt?: Date | null;
   appliedDate: Date;
   dueDate: Date;
   salaryRange: string | null;

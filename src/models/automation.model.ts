@@ -72,6 +72,22 @@ export function isRetiredBoard(board: string): boolean {
   return RETIRED_BOARDS.includes(board);
 }
 
+// A row from the JobBoard catalog table (src/actions/jobBoard.actions.ts).
+// `isSupported` mirrors whether `slug` has a matching provider in
+// src/lib/scraper/ats/registry.ts — only supported boards can actually run
+// an automation today; the rest are catalog/roadmap entries.
+export interface JobBoardCatalogEntry {
+  id: string;
+  slug: string;
+  label: string;
+  description: string | null;
+  websiteUrl: string | null;
+  providerKey: string | null;
+  isSupported: boolean;
+  isActive: boolean;
+  sortOrder: number;
+}
+
 export interface Automation {
   id: string;
   userId: string;

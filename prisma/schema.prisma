@@ -356,6 +356,28 @@ model JobSource {
   @@unique([value, createdBy])
 }
 
+// Global catalog of job board sites an automation could search. Not
+// per-user: it's a shared reference list, same as SIDEBAR_LINKS-style
+// constants used to be. `providerKey` maps to a key in the ats/registry
+// scraper map (src/lib/scraper/ats/registry.ts) — only boards with a
+// providerKey actually run automated scraping today; the rest (e.g.
+// LinkedIn, Indeed, Glassdoor) are catalog-only until a scraper module is
+// built for them, since those sites don't expose a public per-company JSON
+// API the way Greenhouse/Lever/Ashby do.
+model JobBoard {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  label       String
+  description String?
+  websiteUrl  String?
+  providerKey String?
+  isSupported Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Interview {
   id           String    @id @default(uuid())
   createdAt    DateTime

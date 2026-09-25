@@ -4,6 +4,7 @@ import { Card, CardContent, CardFooter } from "../ui/card";
 import { Loader } from "lucide-react";
 import {
   deleteJobById,
+  deleteJobsByIds,
   getJobDetails,
   updateJobStatus,
 } from "@/actions/job.actions";
@@ -97,6 +98,13 @@ function JobsContainer({
     reloadJobs();
   };
 
+  const onDeleteJobs = async (jobIds: string[]) => {
+    const { success, message } = await deleteJobsByIds(jobIds);
+    if (success) toastSuccess(`${jobIds.length} jobs have been deleted successfully`);
+    else toastError(message);
+    reloadJobs();
+  };
+
   const onEditJob = async (jobId: string) => {
     const { job, success, message } = await getJobDetails(jobId);
     if (!success) {
@@ -176,6 +184,7 @@ function JobsContainer({
                 jobs={jobs}
                 jobStatuses={statuses}
                 deleteJob={onDeleteJob}
+                deleteJobs={onDeleteJobs}
                 editJob={onEditJob}
                 onChangeJobStatus={onChangeJobStatus}
                 onAddNote={onAddNote}

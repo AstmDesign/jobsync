@@ -8,6 +8,7 @@ import {
   Wrench,
   Zap,
   BookOpen,
+  Globe,
 } from "lucide-react";
 
 export const APP_CONSTANTS = {
@@ -330,6 +331,11 @@ export const SIDEBAR_LINKS = [
     icon: Zap,
     route: "/dashboard/automations",
     label: "Automations",
+  },
+  {
+    icon: Globe,
+    route: "/dashboard/job-boards",
+    label: "Job Boards",
   },
   {
     icon: SquareCheckBig,

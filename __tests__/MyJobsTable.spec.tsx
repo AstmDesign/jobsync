@@ -36,6 +36,7 @@ function makeJob(overrides: Partial<JobResponse> = {}): JobResponse {
     createdAt: new Date("2024-06-01"),
     appliedDate: new Date("2024-06-01"),
     dueDate: new Date("2099-01-01"),
+    discoveredAt: new Date("2024-06-02"),
     salaryRange: "",
     description: "",
     jobUrl: "",
@@ -53,6 +54,7 @@ function renderTable(jobs: JobResponse[], overrides: Partial<React.ComponentProp
     jobs,
     jobStatuses: mockStatuses,
     deleteJob,
+    deleteJobs: vi.fn(),
     editJob,
     onChangeJobStatus,
     onAddNote,
@@ -111,6 +113,7 @@ describe("MyJobsTable", () => {
         jobs={[makeJob({ matchScore: null })]}
         jobStatuses={mockStatuses}
         deleteJob={vi.fn()}
+        deleteJobs={vi.fn()}
         editJob={vi.fn()}
         onChangeJobStatus={vi.fn()}
         onAddNote={vi.fn()}
@@ -144,6 +147,7 @@ describe("MyJobsTable", () => {
         jobs={[makeJob({ _count: { Notes: 0 } })]}
         jobStatuses={mockStatuses}
         deleteJob={vi.fn()}
+        deleteJobs={vi.fn()}
         editJob={vi.fn()}
         onChangeJobStatus={vi.fn()}
         onAddNote={vi.fn()}

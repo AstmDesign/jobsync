@@ -8,6 +8,8 @@ import { hideUnanalyzedScore } from "./shared";
 
 const JOB_LIST_SELECT = {
   id: true,
+  createdAt: true,
+  discoveredAt: true,
   JobSource: true,
   JobTitle: true,
   jobType: true,

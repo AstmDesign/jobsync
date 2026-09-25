@@ -236,3 +236,22 @@ export const deleteJobById = async (
     return handleError(error, msg);
   }
 };
+
+export const deleteJobsByIds = async (
+  jobIds: string[],
+): Promise<any | undefined> => {
+  try {
+    const user = await requireUser();
+    const ids = [...new Set(jobIds)].filter(Boolean);
+    if (ids.length === 0) throw new Error("At least one job id is required");
+
+    const res = await prisma.job.deleteMany({
+      where: { id: { in: ids }, userId: user.id },
+    });
+    revalidatePath("/dashboard");
+    return { res, success: true };
+  } catch (error) {
+    const msg = "Failed to delete jobs.";
+    return handleError(error, msg);
+  }
+};

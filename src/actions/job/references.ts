@@ -31,6 +31,27 @@ export const getJobSourceList = async (): Promise<any | undefined> => {
   }
 };
 
+// Same scope as getJobSourceList, but filtered to sources actually linked to
+// at least one of the user's jobs — for the My Jobs filter dropdown, where
+// listing every source ever created (some never used on a job) would be
+// misleading.
+export const getJobSourcesInUse = async (): Promise<any | undefined> => {
+  try {
+    const user = await requireUser();
+    const list = await prisma.jobSource.findMany({
+      where: {
+        createdBy: user.id,
+        jobsApplied: { some: {} },
+      },
+      orderBy: { label: "asc" },
+    });
+    return list;
+  } catch (error) {
+    const msg = "Failed to fetch job source list. ";
+    return handleError(error, msg);
+  }
+};
+
 export const createLocation = async (
   label: string,
 ): Promise<any | undefined> => {

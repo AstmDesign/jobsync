@@ -34,6 +34,12 @@ type MyJobsProps = {
   locations: JobLocation[];
   sources: JobSource[];
   tags: Tag[];
+  // Location/JobSource are shared with other parts of the app (contacts,
+  // education, experience, and job sources/locations created but never
+  // applied to a job) so the full lists above aren't right for the filter
+  // dropdown — these are pre-filtered to values actually used on a job.
+  filterLocations: JobLocation[];
+  filterSources: JobSource[];
 };
 
 function JobsContainer({
@@ -43,6 +49,8 @@ function JobsContainer({
   locations,
   sources,
   tags,
+  filterLocations,
+  filterSources,
 }: MyJobsProps) {
   const router = useRouter();
   const [editJob, setEditJob] = useState(null);
@@ -64,6 +72,8 @@ function JobsContainer({
     clearTitleFilter,
     clearLocationFilter,
     clearSourceFilter,
+    selectLocationFilter,
+    selectSourceFilter,
   } = useJobFilters({ companies, titles, locations, sources });
 
   const {
@@ -151,6 +161,10 @@ function JobsContainer({
           onClearLocationFilter={clearLocationFilter}
           sourceLabel={sourceLabel}
           onClearSourceFilter={clearSourceFilter}
+          locationFilter={locationFilter}
+          onLocationFilterChange={selectLocationFilter}
+          sourceFilter={sourceFilter}
+          onSourceFilterChange={selectSourceFilter}
           onReload={() => loadJobs(1, filterKey, searchTerm || undefined)}
           searchTerm={searchTerm}
           onSearchTermChange={setSearchTerm}
@@ -162,6 +176,8 @@ function JobsContainer({
           titles={titles}
           locations={locations}
           sources={sources}
+          filterLocations={filterLocations}
+          filterSources={filterSources}
           tags={tags}
           editJob={editJob}
           resetEditJob={resetEditJob}

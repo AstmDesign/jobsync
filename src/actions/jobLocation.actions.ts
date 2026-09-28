@@ -20,6 +20,27 @@ export const getAllJobLocations = async (): Promise<any | undefined> => {
   }
 };
 
+// Same scope as getAllJobLocations, but filtered to locations actually linked
+// to at least one of the user's jobs — Location is shared with education/
+// experience/contacts too, so the full list would surface locations that
+// never appear on a job. Used by the My Jobs filter dropdown only.
+export const getJobLocationsInUse = async (): Promise<any | undefined> => {
+  try {
+    const user = await requireUser();
+    const list = await prisma.location.findMany({
+      where: {
+        createdBy: user.id,
+        jobsApplied: { some: {} },
+      },
+      orderBy: { label: "asc" },
+    });
+    return list;
+  } catch (error) {
+    const msg = "Failed to fetch job location list. ";
+    return handleError(error, msg);
+  }
+};
+
 export const getJobLocationsList = async (
   page: number = 1,
   limit: number = APP_CONSTANTS.RECORDS_PER_PAGE,

@@ -75,6 +75,22 @@ export function useJobFilters({
     router.push(pathname);
   };
 
+  // Selecting from the toolbar dropdowns follows the same convention as the
+  // clear handlers above: one filter replaces the whole query string rather
+  // than merging params, since only one of company/title/location/source is
+  // expected active at a time.
+  const selectLocationFilter = (value: string) => {
+    setLocationFilter(value);
+    setAppliedFilter(false);
+    router.push(`${pathname}?location=${encodeURIComponent(value)}`);
+  };
+
+  const selectSourceFilter = (value: string) => {
+    setSourceFilter(value);
+    setAppliedFilter(false);
+    router.push(`${pathname}?source=${encodeURIComponent(value)}`);
+  };
+
   useEffect(() => {
     const cp = queryParams.get("company");
     const tp = queryParams.get("title");
@@ -103,5 +119,7 @@ export function useJobFilters({
     clearTitleFilter,
     clearLocationFilter,
     clearSourceFilter,
+    selectLocationFilter,
+    selectSourceFilter,
   };
 }

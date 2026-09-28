@@ -1,5 +1,5 @@
 "use client";
-import { File, ListFilter, RefreshCw, X } from "lucide-react";
+import { File, Globe, ListFilter, MapPin, RefreshCw, X } from "lucide-react";
 import { CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { SearchInput } from "../../SearchInput";
@@ -43,6 +43,10 @@ export function JobsToolbar({
   onClearLocationFilter,
   sourceLabel,
   onClearSourceFilter,
+  locationFilter,
+  onLocationFilterChange,
+  sourceFilter,
+  onSourceFilterChange,
   onReload,
   searchTerm,
   onSearchTermChange,
@@ -54,6 +58,8 @@ export function JobsToolbar({
   titles,
   locations,
   sources,
+  filterLocations,
+  filterSources,
   tags,
   editJob,
   resetEditJob,
@@ -72,6 +78,10 @@ export function JobsToolbar({
   onClearLocationFilter: () => void;
   sourceLabel?: string | null;
   onClearSourceFilter: () => void;
+  locationFilter?: string | null;
+  onLocationFilterChange: (value: string) => void;
+  sourceFilter?: string | null;
+  onSourceFilterChange: (value: string) => void;
   onReload: () => void;
   searchTerm: string;
   onSearchTermChange: (value: string) => void;
@@ -83,6 +93,8 @@ export function JobsToolbar({
   titles: JobTitle[];
   locations: JobLocation[];
   sources: JobSource[];
+  filterLocations: JobLocation[];
+  filterSources: JobSource[];
   tags: Tag[];
   editJob: JobResponse | null;
   resetEditJob: () => void;
@@ -175,6 +187,56 @@ export function JobsToolbar({
             </SelectGroup>
           </SelectContent>
         </Select>
+        {filterLocations.length > 0 && (
+          <Select
+            value={locationFilter ?? undefined}
+            onValueChange={onLocationFilterChange}
+          >
+            <SelectTrigger
+              className="w-[140px] h-8"
+              data-testid="job-location-filter-select"
+            >
+              <MapPin className="h-3.5 w-3.5" />
+              <SelectValue placeholder="Location" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Location</SelectLabel>
+                <SelectSeparator />
+                {filterLocations.map((location) => (
+                  <SelectItem key={location.id} value={location.value}>
+                    {location.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        )}
+        {filterSources.length > 0 && (
+          <Select
+            value={sourceFilter ?? undefined}
+            onValueChange={onSourceFilterChange}
+          >
+            <SelectTrigger
+              className="w-[140px] h-8"
+              data-testid="job-source-filter-select"
+            >
+              <Globe className="h-3.5 w-3.5" />
+              <SelectValue placeholder="Source" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Source</SelectLabel>
+                <SelectSeparator />
+                {filterSources.map((source) => (
+                  <SelectItem key={source.id} value={source.value}>
+                    {source.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        )}
         <Button
           size="sm"
           variant="outline"

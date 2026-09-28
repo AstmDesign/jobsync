@@ -15,6 +15,7 @@ export { updateJobStatus, saveJobMatchResult } from "./job/status";
 export {
   getStatusList,
   getJobSourceList,
+  getJobSourcesInUse,
   createLocation,
   createJobSource,
 } from "./job/references";

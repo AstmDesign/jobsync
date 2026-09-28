@@ -50,14 +50,42 @@ export const saveJobMatchResult = async (
   jobId: string,
   matchScore: number,
   matchData: string,
+  jobTitle?: string,
+  company?: string,
 ): Promise<any | undefined> => {
   try {
     const user = await requireUser();
 
-    await prisma.job.update({
-      where: { id: jobId, userId: user.id },
-      data: { matchScore, matchData },
-    });
+    // Snapshot jobTitle/company at write time (the only moment the Job row is
+    // guaranteed to still exist) and persist the result independently of the
+    // Job row, so it survives job deletion — see MatchResult in schema.prisma.
+    let title = jobTitle;
+    let companyLabel = company;
+    if (!title) {
+      const job = await prisma.job.findUnique({
+        where: { id: jobId, userId: user.id },
+        include: { JobTitle: true, Company: true },
+      });
+      title = job?.JobTitle?.label ?? "Untitled job";
+      companyLabel = job?.Company?.label;
+    }
+
+    await prisma.$transaction([
+      prisma.job.update({
+        where: { id: jobId, userId: user.id },
+        data: { matchScore, matchData },
+      }),
+      prisma.matchResult.create({
+        data: {
+          userId: user.id,
+          jobId,
+          jobTitle: title,
+          company: companyLabel,
+          matchScore,
+          matchData,
+        },
+      }),
+    ]);
 
     return { success: true };
   } catch (error) {

@@ -20,7 +20,6 @@ import { TooltipProvider } from "../ui/tooltip";
 import { JobActionsMenu } from "./JobActionsMenu";
 import { MatchJobButton } from "./MatchJobButton";
 import { CompanyLogo } from "./CompanyLogo";
-import { Button } from "../ui/button";
 
 type MyJobsTableProps = {
   jobs: JobResponse[];
@@ -58,7 +57,6 @@ function MyJobsTable({
         case "source": return job.JobSource?.label ?? "";
         case "appliedDate": return job.appliedDate?.getTime() ?? 0;
         case "createdAt": return job.createdAt?.getTime() ?? 0;
-        case "discoveredAt": return job.discoveredAt?.getTime() ?? 0;
         default: return "";
       }
     };
@@ -97,9 +95,24 @@ function MyJobsTable({
         <TableHeader>
           <TableRow>
             <TableHead className="w-10">
-              <button type="button" aria-label="Select all jobs" onClick={toggleAll} className="flex h-4 w-4 items-center justify-center rounded border">
-                {allVisibleSelected && <Check className="h-3 w-3" />}
-              </button>
+              <div className="flex items-center gap-2 whitespace-nowrap">
+                <button type="button" aria-label="Select all jobs" onClick={toggleAll} className="flex h-4 w-4 shrink-0 items-center justify-center rounded border">
+                  {allVisibleSelected && <Check className="h-3 w-3" />}
+                </button>
+                {selectedJobIds.length > 0 && (
+                  <>
+                    <span className="text-xs text-muted-foreground">{selectedJobIds.length}</span>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${selectedJobIds.length} selected jobs`}
+                      onClick={() => setBulkDeleteOpen(true)}
+                      className="text-destructive hover:text-destructive/80"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
             </TableHead>
             <TableHead className="hidden w-[100px] sm:table-cell">
               <span className="sr-only">Company Logo</span>
@@ -108,7 +121,6 @@ function MyJobsTable({
             {sortableHead("Title", "title")}
             {sortableHead("Company", "company")}
             {sortableHead("Created", "createdAt", "hidden md:table-cell")}
-            {sortableHead("Synced", "discoveredAt", "hidden md:table-cell")}
             {sortableHead("Location", "location", "hidden md:table-cell")}
             {sortableHead("Status", "status")}
             {sortableHead("Match", "match", "hidden md:table-cell text-center")}
@@ -155,7 +167,6 @@ function MyJobsTable({
                   <span className="block truncate">{job.Company?.label}</span>
                 </TableCell>
                 <TableCell className="hidden md:table-cell whitespace-nowrap">{job.createdAt ? format(job.createdAt, "PPp") : "N/A"}</TableCell>
-                <TableCell className="hidden md:table-cell whitespace-nowrap">{job.discoveredAt ? format(job.discoveredAt, "PPp") : "N/A"}</TableCell>
                 <TableCell className="hidden md:table-cell whitespace-nowrap max-w-[120px]">
                   <span className="block truncate">{job.Location?.label}</span>
                 </TableCell>
@@ -197,12 +208,6 @@ function MyJobsTable({
           })}
         </TableBody>
       </Table>
-      {selectedJobIds.length > 0 && (
-        <div className="flex items-center justify-between border-t px-4 py-3">
-          <span className="text-sm text-muted-foreground">{selectedJobIds.length} selected</span>
-          <Button variant="destructive" size="sm" onClick={() => setBulkDeleteOpen(true)}><Trash2 />Delete selected</Button>
-        </div>
-      )}
       <DeleteAlertDialog
         pageTitle="job"
         open={alertOpen}

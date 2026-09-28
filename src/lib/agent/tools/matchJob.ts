@@ -154,6 +154,8 @@ export function buildMatchJobTool(ctx: MatchJobContext) {
         job.id!,
         scores.matchScore,
         JSON.stringify(matchData),
+        jobTitle,
+        company || undefined,
       );
       const saved = saveResult?.success === true;
 

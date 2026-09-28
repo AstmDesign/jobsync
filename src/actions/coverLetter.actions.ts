@@ -147,6 +147,66 @@ export const deleteCoverLetterById = async (
   }
 };
 
+export const deleteCoverLettersByIds = async (
+  coverLetterIds: string[]
+): Promise<any | undefined> => {
+  try {
+    const user = await requireUser();
+    const ids = [...new Set(coverLetterIds)].filter(Boolean);
+    if (ids.length === 0) throw new Error("At least one cover letter id is required");
+
+    const res = await prisma.coverLetter.deleteMany({
+      where: { id: { in: ids }, profile: { userId: user.id } },
+    });
+
+    return { res, success: true };
+  } catch (error) {
+    const msg = "Failed to delete cover letters.";
+    return handleError(error, msg);
+  }
+};
+
+// Cover letters that were generated from a job's "Generate Cover Letter"
+// action (as opposed to created manually on the Profile page). Distinguished
+// by the jobTitle snapshot, which is only ever set by generateCoverLetterForJob.
+export const getGeneratedCoverLetterList = async (
+  page: number = 1,
+  limit: number = APP_CONSTANTS.RECORDS_PER_PAGE
+): Promise<any | undefined> => {
+  try {
+    const user = await requireUser();
+    const skip = (page - 1) * limit;
+    const where = {
+      profile: { userId: user.id },
+      jobTitle: { not: null },
+    };
+
+    const [data, total] = await Promise.all([
+      prisma.coverLetter.findMany({
+        where,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          jobTitle: true,
+          company: true,
+          createdAt: true,
+          updatedAt: true,
+          Job: { select: { id: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.coverLetter.count({ where }),
+    ]);
+    return { data, total, success: true };
+  } catch (error) {
+    const msg = "Failed to get generated cover letters list.";
+    return handleError(error, msg);
+  }
+};
+
 export const generateCoverLetterForJob = async (
   jobId: string,
   markdown: string
@@ -193,7 +253,13 @@ export const generateCoverLetterForJob = async (
 
     const created = await prisma.$transaction(async (tx) => {
       const letter = await tx.coverLetter.create({
-        data: { profileId: profile.id, title, content },
+        data: {
+          profileId: profile.id,
+          title,
+          content,
+          jobTitle: job.JobTitle?.label ?? null,
+          company: job.Company?.label ?? null,
+        },
       });
 
       await tx.job.update({

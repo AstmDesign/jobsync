@@ -175,6 +175,7 @@ function JobsContainer({
                 jobs={jobs}
                 jobStatuses={statuses}
                 deleteJob={onDeleteJob}
+                deleteJobs={onDeleteJobs}
                 editJob={onEditJob}
                 onChangeJobStatus={onChangeJobStatus}
                 onAddNote={onAddNote}

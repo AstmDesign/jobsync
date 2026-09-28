@@ -9,6 +9,8 @@ import {
   Zap,
   BookOpen,
   Globe,
+  Target,
+  FileText,
 } from "lucide-react";
 
 export const APP_CONSTANTS = {
@@ -349,6 +351,16 @@ export const SIDEBAR_LINKS = [
     icon: BriefcaseBusiness,
     route: "/dashboard/myjobs",
     label: "Jobs",
+  },
+  {
+    icon: Target,
+    route: "/dashboard/match-results",
+    label: "Match Results",
+  },
+  {
+    icon: FileText,
+    route: "/dashboard/cover-letters",
+    label: "Cover Letters",
   },
   {
     icon: Zap,

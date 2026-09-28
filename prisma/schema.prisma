@@ -37,6 +37,7 @@ model User {
   Question       Question[]
   McpAccessToken McpAccessToken[]
   ChatConversation ChatConversation?
+  MatchResult    MatchResult[]
   defaultResumeId String?
   defaultResume   Resume?          @relation("UserDefaultResume", fields: [defaultResumeId], references: [id], onDelete: SetNull)
 }
@@ -101,6 +102,11 @@ model CoverLetter {
   updatedAt DateTime @updatedAt
   profile   Profile  @relation(fields: [profileId], references: [id])
   Job       Job[]
+  // Snapshot of the job it was generated for, so it stays reviewable after the
+  // job is deleted. Null for cover letters created manually from the Profile
+  // page (not tied to any job at generation time).
+  jobTitle  String?
+  company   String?
 }
 
 model File {
@@ -432,11 +438,34 @@ model Job {
   // "title-only" | "partial" | "full". Null for pre-existing/UI jobs.
   descriptionCompleteness String?
 
+  MatchResult MatchResult[]
+
   @@index([userId, automationId])
   @@index([userId, discoveryStatus])
   // Also has a hand-written partial unique index (not expressible here):
   // UNIQUE(userId, jobUrl) WHERE automationId IS NOT NULL
   // See migrations/20260710000002_job_automation_url_unique
+}
+
+// Persisted "Match with AI" result, kept independent of Job so it survives
+// job deletion. jobTitle/company are snapshotted at write time (the only
+// reliable moment the Job row is guaranteed to still exist); jobId is nulled
+// (not cascaded) when the parent Job is deleted, so the row and its analysis
+// remain reviewable, just without a working link back to the job.
+model MatchResult {
+  id         String   @id @default(uuid())
+  userId     String
+  User       User     @relation(fields: [userId], references: [id])
+  jobId      String?
+  Job        Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  jobTitle   String
+  company    String?
+  matchScore Int?
+  matchData  String
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([jobId])
 }
 
 model ActivityType {

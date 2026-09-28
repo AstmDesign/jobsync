@@ -1,5 +1,5 @@
 "use client";
-import { Calendar, MapPin, PlusCircle, StickyNote } from "lucide-react";
+import { Calendar, CalendarPlus, Check, MapPin, PlusCircle, StickyNote } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { Badge } from "../ui/badge";
@@ -17,6 +17,8 @@ type JobCardProps = {
   onChangeJobStatus: (id: string, status: JobStatus) => void;
   onAddNote: (jobId: string) => void;
   onDeleteJob: (jobId: string) => void;
+  selected?: boolean;
+  onToggleSelect?: (jobId: string) => void;
 };
 
 export function JobCard({
@@ -26,12 +28,24 @@ export function JobCard({
   onChangeJobStatus,
   onAddNote,
   onDeleteJob,
+  selected = false,
+  onToggleSelect,
 }: JobCardProps) {
   const notesCount = job._count?.Notes ?? 0;
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
       <div className="flex items-start gap-3">
+        {onToggleSelect && (
+          <button
+            type="button"
+            aria-label={`Select ${job.JobTitle?.label ?? "job"}`}
+            onClick={() => onToggleSelect(job.id)}
+            className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border"
+          >
+            {selected && <Check className="h-3 w-3" />}
+          </button>
+        )}
         <CompanyLogo
           logoUrl={job.Company?.logoUrl}
           className="h-10 w-10 min-w-10"
@@ -75,6 +89,10 @@ export function JobCard({
         <span className="flex items-center gap-1 whitespace-nowrap">
           <Calendar className="h-3.5 w-3.5 shrink-0" />
           {job.appliedDate ? format(job.appliedDate, "PP") : "Not applied"}
+        </span>
+        <span className="flex items-center gap-1 whitespace-nowrap">
+          <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
+          {job.createdAt ? format(job.createdAt, "PP") : "N/A"}
         </span>
         {job.JobSource?.label && (
           <span className="flex min-w-0 items-center gap-1">

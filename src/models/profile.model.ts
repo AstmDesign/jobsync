@@ -132,6 +132,13 @@ export interface CoverLetter {
   content: string;
   createdAt?: Date;
   updatedAt?: Date;
+  // Snapshot of the job it was generated for (null for manually-created
+  // letters), so it stays reviewable after the job is deleted.
+  jobTitle?: string | null;
+  company?: string | null;
+  // Jobs currently linking back to this letter. Empty once the job that
+  // generated it has been deleted (or it was never job-linked).
+  Job?: { id: string }[];
   _count?: {
     Job?: number;
   };

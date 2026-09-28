@@ -93,7 +93,7 @@ export function buildMatchJobTool(ctx: MatchJobContext) {
           jobPre.data.normalizedText,
         ),
         temperature: TEMPERATURES.FEEDBACK,
-        numCtx: APP_CONSTANTS.AI_OLLAMA_NUM_CTX,
+        numCtx: APP_CONSTANTS.AI_RESUME_JOB_NUM_CTX,
         timeoutMs: APP_CONSTANTS.AI_JOB_MATCH_TIMEOUT_MS,
         writer: ctx.writer,
         toolCallId,
@@ -125,7 +125,7 @@ export function buildMatchJobTool(ctx: MatchJobContext) {
         return {
           status: "generation_failed",
           jobTitle,
-          reason: "The match could not be generated. Try again in a moment.",
+          reason: `The match could not be generated (${generation.reason}). Try again in a moment.`,
         };
       }
 

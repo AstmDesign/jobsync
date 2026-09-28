@@ -104,7 +104,7 @@ export function buildGenerateCoverLetterTool(ctx: CoverLetterContext) {
           extractMatchGuidance(job.matchData),
         ),
         temperature: TEMPERATURES.FEEDBACK,
-        numCtx: APP_CONSTANTS.AI_OLLAMA_NUM_CTX,
+        numCtx: APP_CONSTANTS.AI_RESUME_JOB_NUM_CTX,
         timeoutMs: APP_CONSTANTS.AI_COVER_LETTER_TIMEOUT_MS,
         writer: ctx.writer,
         toolCallId,
@@ -136,7 +136,7 @@ export function buildGenerateCoverLetterTool(ctx: CoverLetterContext) {
         return {
           status: "generation_failed",
           jobTitle,
-          reason: "The letter could not be generated. Try again in a moment.",
+          reason: `The letter could not be generated (${generation.reason}). Try again in a moment.`,
         };
       }
 
@@ -151,7 +151,12 @@ export function buildGenerateCoverLetterTool(ctx: CoverLetterContext) {
         };
       }
 
-      const saveResult = await generateCoverLetterForJob(job.id!, letter);
+      const saveResult = await generateCoverLetterForJob(
+        job.id!,
+        letter,
+        resume.id!,
+        resume.title,
+      );
       const saved = saveResult?.success === true;
 
       return {

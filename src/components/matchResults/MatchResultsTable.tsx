@@ -138,6 +138,7 @@ export function MatchResultsTable({ results, reload }: MatchResultsTableProps) {
             </TableHead>
             <TableHead>Job Title</TableHead>
             <TableHead className="hidden md:table-cell">Company</TableHead>
+            <TableHead className="hidden lg:table-cell">Resume Used</TableHead>
             <TableHead className="text-center">Score</TableHead>
             <TableHead className="hidden md:table-cell whitespace-nowrap">Matched On</TableHead>
             <TableHead>
@@ -177,6 +178,22 @@ export function MatchResultsTable({ results, reload }: MatchResultsTableProps) {
                 </TableCell>
                 <TableCell className="hidden md:table-cell max-w-[160px]">
                   <span className="block truncate">{result.company}</span>
+                </TableCell>
+                <TableCell className="hidden lg:table-cell max-w-[160px]">
+                  {parsed?.resumeTitle ? (
+                    parsed.resumeId ? (
+                      <Link
+                        href={`/dashboard/profile/resume/${parsed.resumeId}`}
+                        className="block truncate hover:underline"
+                      >
+                        {parsed.resumeTitle}
+                      </Link>
+                    ) : (
+                      <span className="block truncate">{parsed.resumeTitle}</span>
+                    )
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-center">
                   {result.matchScore != null && (

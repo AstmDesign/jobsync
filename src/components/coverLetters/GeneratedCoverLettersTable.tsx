@@ -139,6 +139,7 @@ export function GeneratedCoverLettersTable({
             </TableHead>
             <TableHead>Job Title</TableHead>
             <TableHead className="hidden md:table-cell">Company</TableHead>
+            <TableHead className="hidden lg:table-cell">Resume Used</TableHead>
             <TableHead className="hidden md:table-cell whitespace-nowrap">Created</TableHead>
             <TableHead>
               <span className="sr-only">Actions</span>
@@ -179,6 +180,22 @@ export function GeneratedCoverLettersTable({
                 </TableCell>
                 <TableCell className="hidden md:table-cell max-w-[160px]">
                   <span className="block truncate">{letter.company}</span>
+                </TableCell>
+                <TableCell className="hidden lg:table-cell max-w-[160px]">
+                  {letter.resumeTitle ? (
+                    letter.resumeId ? (
+                      <Link
+                        href={`/dashboard/profile/resume/${letter.resumeId}`}
+                        className="block truncate hover:underline"
+                      >
+                        {letter.resumeTitle}
+                      </Link>
+                    ) : (
+                      <span className="block truncate">{letter.resumeTitle}</span>
+                    )
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="hidden md:table-cell whitespace-nowrap">
                   {letter.createdAt ? format(letter.createdAt, "PPp") : "N/A"}

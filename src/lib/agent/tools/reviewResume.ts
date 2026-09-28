@@ -100,7 +100,7 @@ export function buildReviewResumeTool(ctx: ReviewResumeContext) {
         return {
           status: "generation_failed",
           title,
-          reason: "The review could not be generated. Try again in a moment.",
+          reason: `The review could not be generated (${generation.reason}). Try again in a moment.`,
         };
       }
 

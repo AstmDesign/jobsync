@@ -192,6 +192,8 @@ export const getGeneratedCoverLetterList = async (
           content: true,
           jobTitle: true,
           company: true,
+          resumeId: true,
+          resumeTitle: true,
           createdAt: true,
           updatedAt: true,
           Job: { select: { id: true } },
@@ -209,7 +211,9 @@ export const getGeneratedCoverLetterList = async (
 
 export const generateCoverLetterForJob = async (
   jobId: string,
-  markdown: string
+  markdown: string,
+  resumeId?: string,
+  resumeTitle?: string
 ): Promise<any | undefined> => {
   try {
     const user = await requireUser();
@@ -259,6 +263,8 @@ export const generateCoverLetterForJob = async (
           content,
           jobTitle: job.JobTitle?.label ?? null,
           company: job.Company?.label ?? null,
+          resumeId: resumeId ?? null,
+          resumeTitle: resumeTitle ?? null,
         },
       });
 

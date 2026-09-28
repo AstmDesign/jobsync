@@ -16,7 +16,7 @@ export type NestedGenerationResult =
   | { status: "ok"; text: string }
   | { status: "incomplete" }
   | { status: "busy" }
-  | { status: "failed" };
+  | { status: "failed"; reason: string };
 
 // One per request, created in buildAgentTools. Process-wide state would block
 // one user behind another's generation.
@@ -139,10 +139,22 @@ export async function runNestedGeneration({
       });
       return { status: "ok", text };
     } catch (error) {
-      log.error(`[agent-chat] ${label} generation failed`, { error: String(error) });
+      // A timeout/abort during the trailing await (finishReason/totalUsage,
+      // right after the visible stream already finished) lands here wearing
+      // a DOMException named "TimeoutError" or "AbortError" — surfaced
+      // distinctly so "the model finished but we still called it failed"
+      // is diagnosable from the chat message alone, no server logs needed.
+      const name = error instanceof Error ? error.name : undefined;
+      const reason =
+        name === "TimeoutError" || name === "AbortError"
+          ? "it took longer than the time budget allows"
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      log.error(`[agent-chat] ${label} generation failed`, { error: String(error), name });
       span.setError(error);
       span.end({ "jobsync.nested.status": "failed" });
-      return { status: "failed" };
+      return { status: "failed", reason };
     } finally {
       guard.running = false;
     }

@@ -107,6 +107,12 @@ model CoverLetter {
   // page (not tied to any job at generation time).
   jobTitle  String?
   company   String?
+  // Snapshot of the resume used to generate this letter (not a FK: Resume
+  // rows can be deleted, and unlike Job.resumeId this must not block that).
+  // resumeId is kept only as a best-effort link to Profile → Resumes; it may
+  // point at a resume that no longer exists.
+  resumeId    String?
+  resumeTitle String?
 }
 
 model File {

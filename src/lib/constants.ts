@@ -83,7 +83,34 @@ export const APP_CONSTANTS = {
   // Job match generation timeout. Like the review, the match is a markdown
   // analysis (scores line plus several sections) over a resume and a JD, so a
   // local model can take minutes; too low cuts the stream mid-analysis.
-  AI_JOB_MATCH_TIMEOUT_MS: 180_000,
+  // Higher than AI_RESUME_REVIEW_TIMEOUT_MS on purpose: match_job prefills
+  // TWO full documents (resume + JD) instead of one, and its 7-section output
+  // (Summary/Requirements/Skills/Experience/Keywords/Deal Breakers/Tailoring)
+  // runs longer than a review. Symptom of too low: the model finishes
+  // streaming the full analysis, AbortSignal.timeout() fires a beat later
+  // while runNestedGeneration is still awaiting finishReason, and the whole
+  // thing is thrown away as "generation_failed" despite the content being
+  // complete. 240s (an earlier value here) still wasn't enough on slower
+  // local hardware — a full 7-section analysis on CPU-bound or modest-GPU
+  // Ollama can run past 4 minutes on its own, before the trailing
+  // finishReason round-trip. Bumped well past that observed case; this must
+  // stay comfortably under AGENT_CHAT_TIMEOUT_MS below, which was raised to
+  // match.
+  AI_JOB_MATCH_TIMEOUT_MS: 480_000,
+
+  // Context window for nested generations that put a FULL resume AND a FULL
+  // job description in the prompt together (match_job, generate_cover_letter)
+  // — unlike AI_OLLAMA_NUM_CTX's other users (one document in, one output).
+  // AI_OLLAMA_NUM_CTX=8192 is already documented as tight for a resume alone;
+  // a long JD (a full Robinhood-style posting runs 3-4k+ chars) pushes the
+  // combined prompt past that budget, Ollama silently drops the oldest
+  // context to make room, and the truncated/malformed stream that comes back
+  // surfaces as runNestedGeneration's generic catch — "generation_failed"
+  // with no useful reason. Sized like AGENT_CHAT_NUM_CTX (16384) since the
+  // inputs are comparable in shape (long system prompt + two large text
+  // blocks), and this is a per-call override so it doesn't touch the
+  // resume-only nested calls' (review_resume) latency.
+  AI_RESUME_JOB_NUM_CTX: 16_384,
 
   // Cover letter generation timeout. Shorter than match/review because the
   // output is a single 250-400 word letter, not a multi-section analysis.
@@ -201,10 +228,16 @@ export const APP_CONSTANTS = {
   // reachable there is no single correct vocab, and a real tokenizer would be
   // precisely wrong rather than approximately right.
   AGENT_CHAT_CHARS_PER_TOKEN: 4,
-  // Must clear one nested generation plus the thinking steps around it: two
-  // 15-30s think steps plus a 180s review is ~242s, which the old 240s cut off
-  // after the user had watched the whole review stream in.
-  AGENT_CHAT_TIMEOUT_MS: 300_000,
+  // Must clear one nested generation plus the thinking steps around it. This
+  // is the outer deadline whose AbortSignal is passed into every tool call
+  // (including the nested match_job/generate_cover_letter/review_resume
+  // generations, via AbortSignal.any in runNestedGeneration) — if this fires
+  // before a nested call's own timeout, the nested call is aborted here
+  // regardless of its own budget. Sized to clear AI_JOB_MATCH_TIMEOUT_MS
+  // (480s, the largest nested budget) plus ~60-90s of think steps and tool
+  // overhead around it; too low cuts off a nested call that still had time
+  // left on its own clock.
+  AGENT_CHAT_TIMEOUT_MS: 600_000,
   // Deliberately not AI_OLLAMA_NUM_CTX: a chat turn carries a system prompt,
   // tool schemas, a paste head and history. Raising the shared value would
   // change review/match latency.

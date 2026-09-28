@@ -136,6 +136,11 @@ export interface CoverLetter {
   // letters), so it stays reviewable after the job is deleted.
   jobTitle?: string | null;
   company?: string | null;
+  // Snapshot of the resume used to generate this letter (not a FK, may point
+  // at a since-deleted resume), so it stays reviewable if the resume changes
+  // or is removed later.
+  resumeId?: string | null;
+  resumeTitle?: string | null;
   // Jobs currently linking back to this letter. Empty once the job that
   // generated it has been deleted (or it was never job-linked).
   Job?: { id: string }[];

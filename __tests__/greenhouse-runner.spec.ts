@@ -12,7 +12,7 @@ vi.mock("@prisma/client", () => {
     automation: { findUnique: vi.fn(), update: vi.fn() },
     resume: { findUnique: vi.fn() },
     userSettings: { findUnique: vi.fn() },
-    job: { findMany: vi.fn(), create: vi.fn() },
+    job: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
     jobTitle: { findUnique: vi.fn(), create: vi.fn() },
     location: { findUnique: vi.fn(), create: vi.fn() },
     company: { findUnique: vi.fn(), create: vi.fn() },
@@ -133,6 +133,7 @@ describe("runAutomation (greenhouse)", () => {
       ResumeSections: [],
     });
     (prisma.job.findMany as any).mockResolvedValue([]); // no existing urls
+    (prisma.job.findFirst as any).mockResolvedValue(null);
     (prisma.job.create as any).mockResolvedValue({});
     (prisma.jobTitle.findUnique as any).mockResolvedValue({ id: "jt" });
     (prisma.location.findUnique as any).mockResolvedValue({ id: "loc" });
@@ -239,6 +240,36 @@ describe("runAutomation (greenhouse)", () => {
     );
     expect(byKey.fetched).toBe(2);
     expect(byKey.dedup).toBe(1);
+  });
+
+  it("checks for the same title, company, and URL again before saving", async () => {
+    (searchGreenhouseJobs as any).mockResolvedValue({
+      jobs: [
+        {
+          ...makeJob("Frontend Engineer", "React"),
+          url: "https://job-boards.greenhouse.io/acme/jobs/1",
+        },
+      ],
+      errors: [],
+    });
+    // Simulate a matching job being added after the run's initial dedupe
+    // snapshot but before this automation persists its result.
+    (prisma.job.findFirst as any).mockResolvedValue({ id: "already-added" });
+
+    const result = await runAutomation(automation);
+
+    expect(result.status).toBe("completed");
+    expect(result.jobsSaved).toBe(0);
+    expect(prisma.job.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: automation.userId,
+        jobTitleId: "jt",
+        companyId: "co",
+        jobUrl: "https://job-boards.greenhouse.io/acme/jobs/1",
+      },
+      select: { id: true },
+    });
+    expect(prisma.job.create).not.toHaveBeenCalled();
   });
 
   function automationWithGreenhouseConfig(

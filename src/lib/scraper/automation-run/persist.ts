@@ -51,6 +51,19 @@ export async function persistDiscoveredJob(
     skillTerms,
   });
 
+  if (jobRecord.jobUrl) {
+    const existing = await db.job.findFirst({
+      where: {
+        userId: automation.userId,
+        jobTitleId: jobRecord.jobTitleId,
+        companyId: jobRecord.companyId,
+        jobUrl: jobRecord.jobUrl,
+      },
+      select: { id: true },
+    });
+    if (existing) return { saved: false, tagsApplied: 0 };
+  }
+
   try {
     await db.job.create({ data: jobRecord });
     return { saved: true, tagsApplied: jobRecord.tags?.connect.length ?? 0 };

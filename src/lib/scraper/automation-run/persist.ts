@@ -5,6 +5,7 @@ import type { JobDetails } from "../types";
 import { mapScrapedJobToJobRecord } from "../mapper";
 import { normalizeJobUrl } from "../utils";
 import type { SkillTerm } from "./skillTags";
+import { automationLogger } from "@/lib/automation-logger";
 
 // Raw lexical score is ~0..PRERANK_MAX; scale into 0..99 so it fits the Int
 // matchScore column and stays below a perfect LLM score (100). Internal sort
@@ -67,13 +68,27 @@ export async function persistDiscoveredJob(
     },
     select: { id: true },
   });
-  if (existing) return { saved: false, tagsApplied: 0 };
+  if (existing) {
+    automationLogger.log(
+      automation.id,
+      "warning",
+      `Skipped "${job.title}" at ${job.company} — already saved under this title/company`,
+    );
+    return { saved: false, tagsApplied: 0 };
+  }
 
   try {
     await db.job.create({ data: jobRecord });
     return { saved: true, tagsApplied: jobRecord.tags?.connect.length ?? 0 };
   } catch (err: any) {
-    if (err?.code === "P2002") return { saved: false, tagsApplied: 0 };
+    if (err?.code === "P2002") {
+      automationLogger.log(
+        automation.id,
+        "warning",
+        `Skipped "${job.title}" at ${job.company} — already saved (duplicate URL, likely a concurrent run)`,
+      );
+      return { saved: false, tagsApplied: 0 };
+    }
     throw err;
   }
 }

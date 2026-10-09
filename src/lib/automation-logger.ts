@@ -1,4 +1,5 @@
 import { log as telemetryLog } from "@/lib/telemetry";
+import db from "@/lib/db";
 
 export type LogLevel = "info" | "success" | "warning" | "error";
 
@@ -23,6 +24,11 @@ export interface LogStore {
   isRunning: boolean;
   startedAt?: Date;
   completedAt?: Date;
+  // The AutomationRun row this store's logs belong to, so each log() call can
+  // write through to the AutomationRunLog table. Without this, logs are lost
+  // once the in-memory store is evicted (500-entry cap, 1hr retention) — Run
+  // History would have no way to show what happened on an older run.
+  runId?: string;
 }
 
 class AutomationLoggerService {
@@ -33,7 +39,7 @@ class AutomationLoggerService {
   private readonly MAX_LOGS_PER_RUN = 500;
   private readonly LOG_RETENTION_MS = 1000 * 60 * 60; // 1 hour
 
-  startRun(automationId: string): void {
+  startRun(automationId: string, runId: string): void {
     console.log(`[Logger] Starting run for automation ${automationId}`);
     // Drop any stale cancel flag from a prior run before starting a new one.
     this.cancelRequests.delete(automationId);
@@ -41,6 +47,7 @@ class AutomationLoggerService {
       logs: [],
       isRunning: true,
       startedAt: new Date(),
+      runId,
     });
     this.log(automationId, "info", "Automation run started");
     console.log(
@@ -104,6 +111,30 @@ class AutomationLoggerService {
       "automation.id": automationId,
       ...metadata,
     });
+
+    // Write through to the DB so Run History can show this run's logs after
+    // the in-memory store is evicted. Fire-and-forget: log() is called
+    // synchronously from dozens of sites in the run pipeline, and a slow or
+    // failed write must never block or break the run itself.
+    if (store.runId) {
+      const runId = store.runId;
+      db.automationRunLog
+        .create({
+          data: {
+            runId,
+            timestamp: log.timestamp,
+            level,
+            message,
+            metadata: metadata ? JSON.stringify(metadata) : null,
+          },
+        })
+        .catch((err) => {
+          console.error(
+            `[Logger] Failed to persist log for run ${runId}:`,
+            err,
+          );
+        });
+    }
 
     // Keep only the most recent logs
     if (store.logs.length > this.MAX_LOGS_PER_RUN) {

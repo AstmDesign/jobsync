@@ -88,7 +88,7 @@ async function runAutomationTraced(
     "automation.id": automation.id,
     "automation.name": automation.name,
   });
-  automationLogger.startRun(automation.id);
+  automationLogger.startRun(automation.id, run.id);
   log.info("[Automation] Created run", {
     "automation.id": automation.id,
     "run.id": run.id,

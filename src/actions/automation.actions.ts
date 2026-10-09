@@ -22,4 +22,8 @@ export {
 
 export { analyzeDiscoveredJob } from "./automation/analyze";
 
-export { getAutomationRuns, deleteAutomationRun } from "./automation/runs";
+export {
+  getAutomationRuns,
+  getAutomationRunLogs,
+  deleteAutomationRun,
+} from "./automation/runs";

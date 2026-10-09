@@ -591,11 +591,30 @@ model AutomationRun {
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 
+  logs AutomationRunLog[]
+
   @@index([automationId])
   @@index([startedAt])
   // Also has a hand-written partial unique index (not expressible here):
   // UNIQUE(automationId) WHERE status IN ('running', 'cancelling')
   // See migrations/20260710000001_automation_run_single_active
+}
+
+// Durable copy of each run's log lines (automation-logger.ts also keeps a live
+// in-memory copy for the SSE stream, but that one is capped at 500 entries and
+// evicted ~1hr after the run ends, so by the time a user opens Run History for
+// an older run its logs are already gone). Cascades with its run so deleting a
+// run (deleteAutomationRun) clears its log rows too.
+model AutomationRunLog {
+  id        String        @id @default(uuid())
+  runId     String
+  run       AutomationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  timestamp DateTime      @default(now())
+  level     String
+  message   String
+  metadata  String? // JSON
+
+  @@index([runId])
 }
 
 model Note {

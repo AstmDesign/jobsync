@@ -52,6 +52,45 @@ export async function getAutomationRuns(
   }
 }
 
+export async function getAutomationRunLogs(runId: string): Promise<{
+  success: boolean;
+  data?: {
+    timestamp: Date;
+    level: string;
+    message: string;
+    metadata: Record<string, unknown> | null;
+  }[];
+  message?: string;
+}> {
+  try {
+    const user = await requireUser();
+
+    // Ownership check via automation -> userId, same pattern as deleteAutomationRun.
+    const run = await db.automationRun.findFirst({
+      where: { id: runId, automation: { userId: user.id } },
+      select: { id: true },
+    });
+    if (!run) return { success: false, message: "Run not found" };
+
+    const logs = await db.automationRunLog.findMany({
+      where: { runId },
+      orderBy: { timestamp: "asc" },
+    });
+
+    return {
+      success: true,
+      data: logs.map((l) => ({
+        timestamp: l.timestamp,
+        level: l.level,
+        message: l.message,
+        metadata: l.metadata ? JSON.parse(l.metadata) : null,
+      })),
+    };
+  } catch (error) {
+    return formatError(error, "Failed to get run logs");
+  }
+}
+
 export async function deleteAutomationRun(
   runId: string,
 ): Promise<{ success: boolean; message?: string }> {

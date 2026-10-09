@@ -33,11 +33,13 @@ import {
   Square,
   Loader2,
   Trash2,
+  ScrollText,
 } from "lucide-react";
 import type { AutomationRun, FunnelStage } from "@/models/automation.model";
 import { DeleteAlertDialog } from "@/components/DeleteAlertDialog";
 import { deleteAutomationRun } from "@/actions/automation.actions";
 import { toastSuccess, toastError } from "@/lib/toast";
+import { RunLogsDialog } from "./RunLogsDialog";
 
 interface RunHistoryListProps {
   runs: AutomationRun[];
@@ -110,6 +112,7 @@ export function RunHistoryList({
   onDelete,
 }: RunHistoryListProps) {
   const [deleteRunId, setDeleteRunId] = useState<string | null>(null);
+  const [viewLogsRunId, setViewLogsRunId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Infinite scroll: auto-load next page when sentinel is visible
@@ -242,13 +245,23 @@ export function RunHistoryList({
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteRunId(run.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-muted-foreground" />
-                        </Button>
+                        <div className="flex items-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setViewLogsRunId(run.id)}
+                            title="View logs"
+                          >
+                            <ScrollText className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeleteRunId(run.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                     {funnel.length > 0 && (
@@ -297,6 +310,11 @@ export function RunHistoryList({
         open={!!deleteRunId}
         onOpenChange={(open) => !open && setDeleteRunId(null)}
         onDelete={handleDelete}
+      />
+
+      <RunLogsDialog
+        runId={viewLogsRunId}
+        onOpenChange={(open) => !open && setViewLogsRunId(null)}
       />
     </>
   );

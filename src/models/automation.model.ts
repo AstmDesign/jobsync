@@ -17,13 +17,15 @@ export type DiscoveryStatus = "new" | "accepted" | "dismissed";
 // keywords+location via a headless-browser scraper instead. See
 // src/lib/scraper/ats/types.ts (AtsProvider.mode) for how the run pipeline
 // branches between the two.
-export type JobBoard =
-  | "greenhouse"
-  | "lever"
-  | "ashby"
-  | "indeed"
-  | "glassdoor"
-  | "linkedin";
+// Widened from a fixed 6-literal union to a plain string: the Job Boards
+// catalog (JobBoard DB table, src/actions/jobBoard.actions.ts) lets an admin
+// add any custom board with its own `slug` + `websiteUrl`, and those run
+// through the generic custom-site scraper (src/lib/scraper/custom) the same
+// way the three built-in query-mode boards do — see isQueryBoard below and
+// resolveAtsProvider in src/lib/scraper/ats/registry.ts. The six built-in
+// slugs are still the only ones with a dedicated, hand-built scraper; they
+// remain enumerated in ATS_BOARDS/COMPANY_MODE_BOARDS/QUERY_BOARDS below.
+export type JobBoard = string;
 
 export interface GreenhouseCompany {
   name: string;
@@ -100,8 +102,18 @@ export const ATS_BOARDS: JobBoard[] = [
 
 // Query-based boards (no company/token concept — see QueryBoardSourceConfig).
 export const QUERY_BOARDS: JobBoard[] = ["indeed", "glassdoor", "linkedin"];
+
+// The only boards with a company/token watchlist concept. Every other board
+// — the three built-in query boards above, and any custom catalog board
+// with a websiteUrl — is "query-like": searched/scraped as a whole and then
+// ranked by keyword, with no per-company picker. Defining isQueryBoard as
+// "not company mode" (rather than a fixed list) is what lets a brand-new
+// custom board work with the existing query-mode wizard step, config
+// validation, and run pipeline without any of them needing to know about it
+// by name.
+export const COMPANY_MODE_BOARDS: JobBoard[] = ["greenhouse", "lever", "ashby"];
 export function isQueryBoard(board: string): boolean {
-  return QUERY_BOARDS.includes(board as JobBoard);
+  return !COMPANY_MODE_BOARDS.includes(board);
 }
 
 // Boards that used to exist and were removed. Their Automation rows stay in

@@ -2,13 +2,10 @@ import { APP_CONSTANTS } from "@/lib/constants";
 import type { CreateAutomationInput } from "@/models/automation.schema";
 import type { AtsConfigValue } from "../AtsSearchStep";
 
-export type AtsKey =
-  | "greenhouse"
-  | "lever"
-  | "ashby"
-  | "indeed"
-  | "glassdoor"
-  | "linkedin";
+// Was a fixed 6-value union; widened to a plain string since a custom
+// catalog board's slug (any value — see jobBoard.actions.ts slugify()) can
+// also be the active jobBoard now.
+export type AtsKey = string;
 
 export const EMPTY_ATS: AtsConfigValue = {
   companies: [],
@@ -40,14 +37,13 @@ export function parseEditSourceConfig(
   if (!sc) return undefined;
   try {
     const parsed = JSON.parse(sc);
-    return parsed?.greenhouse ||
-      parsed?.lever ||
-      parsed?.ashby ||
-      parsed?.indeed ||
-      parsed?.glassdoor ||
-      parsed?.linkedin
-      ? parsed
-      : undefined;
+    // sourceConfig is always keyed by exactly one jobBoard slug — which may
+    // now be a custom catalog slug, not just one of the six built-ins — so
+    // "has at least one key" is the real test, not an allowlist of names.
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return undefined;
+    }
+    return Object.keys(parsed).length > 0 ? parsed : undefined;
   } catch {
     return undefined;
   }

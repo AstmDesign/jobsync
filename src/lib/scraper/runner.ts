@@ -1,6 +1,6 @@
 import db from "@/lib/db";
 import type { Automation } from "@/models/automation.model";
-import { ATS_PROVIDERS } from "./ats/registry";
+import { resolveAtsProvider } from "./ats/registry";
 import { AiProvider } from "@/models/ai.model";
 import { automationLogger } from "@/lib/automation-logger";
 import { PROVIDER_VERIFIERS } from "@/lib/ai/provider-registry.server";
@@ -216,11 +216,13 @@ async function runAutomationTraced(
       `Resume loaded: ${resume.title}`,
     );
 
-    const atsProvider = ATS_PROVIDERS[automation.jobBoard];
+    const atsProvider = await resolveAtsProvider(automation.jobBoard);
     if (!atsProvider) {
-      // A retired board (jsearch) left on an existing row. The scheduler
-      // filters these out; this covers a direct or manual invocation.
-      const message = `Job board "${automation.jobBoard}" has been removed - delete this automation`;
+      // Either a retired board (jsearch) left on an existing row — the
+      // scheduler filters these out, this covers a direct/manual invocation
+      // — or a custom catalog board that's been deactivated or had its
+      // websiteUrl removed since this automation was created.
+      const message = `Job board "${automation.jobBoard}" is not available — check it on the Job Boards page, or delete this automation`;
       automationLogger.log(automation.id, "error", message);
       automationLogger.endRun(automation.id);
 

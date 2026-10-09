@@ -28,12 +28,14 @@ export function StepBasics({
 }: {
   form: UseFormReturn<CreateAutomationInput>;
 }) {
-  // The Select lets users pick any board in ATS_BOARDS — the six with a real
-  // scraper wired up (Greenhouse/Lever/Ashby by company watchlist, Indeed/
-  // Glassdoor/LinkedIn by keyword search). Anything else from the catalog is
-  // shown disabled as "Coming soon" so the list still reflects what's
-  // manageable from the Job Boards page, without letting users submit a
-  // board that can't actually run yet.
+  // The Select always offers the six built-in boards with a hand-built
+  // scraper (Greenhouse/Lever/Ashby by company watchlist, Indeed/Glassdoor/
+  // LinkedIn by keyword search). Any other catalog board (Job Boards page)
+  // is also selectable once it has isSupported=true — which happens as soon
+  // as it has a websiteUrl, since the generic custom-site scraper
+  // (src/lib/scraper/custom) can attempt any URL. A catalog board with no
+  // URL yet still shows disabled as "coming soon".
+  const [customBoards, setCustomBoards] = useState<JobBoardCatalogEntry[]>([]);
   const [comingSoonBoards, setComingSoonBoards] = useState<
     JobBoardCatalogEntry[]
   >([]);
@@ -46,7 +48,8 @@ export function StepBasics({
           (board) =>
             !ATS_BOARDS.includes(board.slug as (typeof ATS_BOARDS)[number]),
         );
-        setComingSoonBoards(extra);
+        setCustomBoards(extra.filter((b) => b.isSupported && b.websiteUrl));
+        setComingSoonBoards(extra.filter((b) => !(b.isSupported && b.websiteUrl)));
       }
     })();
   }, []);
@@ -94,6 +97,11 @@ export function StepBasics({
                 <SelectItem value="linkedin">
                   LinkedIn (keyword search)
                 </SelectItem>
+                {customBoards.map((board) => (
+                  <SelectItem key={board.id} value={board.slug}>
+                    {board.label} (custom site)
+                  </SelectItem>
+                ))}
                 {comingSoonBoards.map((board) => (
                   <SelectItem key={board.id} value={board.slug} disabled>
                     {board.label} (coming soon)
@@ -102,9 +110,9 @@ export function StepBasics({
               </SelectContent>
             </Select>
             <FormDescription>
-              Track specific companies&apos; job boards. More boards can be
-              added from the Job Boards page — they&apos;ll appear here as
-              &quot;coming soon&quot; until scraper support is built.
+              Track specific companies&apos; job boards, or add your own
+              career-page URL from the Job Boards page — it&apos;ll show up
+              here as a selectable board once it has a website URL.
             </FormDescription>
             <FormMessage />
           </FormItem>

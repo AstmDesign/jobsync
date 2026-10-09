@@ -18,11 +18,13 @@ export function scalePrerank(raw: number): number {
   return Math.min(99, Math.max(0, Math.round((raw / PRERANK_MAX) * 99)));
 }
 
-// Returns saved: false (instead of throwing) when a concurrent run already saved
-// this exact URL first — the Job_userId_jobUrl_automation_key partial unique
-// index (migrations/20260710000002_job_automation_url_unique) is the
-// backstop for that race, since app-level dedup only sees a point-in-time
-// snapshot of existing URLs.
+// Returns saved: false (instead of throwing) when the job is already recorded
+// for this user — either a concurrent run saved the exact same URL first (the
+// Job_userId_jobUrl_automation_key partial unique index, migrations/
+// 20260710000002_job_automation_url_unique, is the backstop for that race) or
+// the same title+company is already on file under a different URL (see the
+// title+company check below). App-level dedup only sees a point-in-time
+// snapshot, so both checks matter.
 export async function persistDiscoveredJob(
   automation: Automation,
   job: JobDetails,
@@ -51,18 +53,21 @@ export async function persistDiscoveredJob(
     skillTerms,
   });
 
-  if (jobRecord.jobUrl) {
-    const existing = await db.job.findFirst({
-      where: {
-        userId: automation.userId,
-        jobTitleId: jobRecord.jobTitleId,
-        companyId: jobRecord.companyId,
-        jobUrl: jobRecord.jobUrl,
-      },
-      select: { id: true },
-    });
-    if (existing) return { saved: false, tagsApplied: 0 };
-  }
+  // Race-condition backstop for the point-in-time dedup check the caller
+  // already ran against getExistingJobDedupeMap. Checks title+company alone
+  // (not also requiring a jobUrl match) because the query-mode scrapers can
+  // hand back a different URL for the same posting run to run (session/
+  // tracking tokens in the link) — so this must catch that case too, not
+  // just the exact-URL race it originally guarded.
+  const existing = await db.job.findFirst({
+    where: {
+      userId: automation.userId,
+      jobTitleId: jobRecord.jobTitleId,
+      companyId: jobRecord.companyId,
+    },
+    select: { id: true },
+  });
+  if (existing) return { saved: false, tagsApplied: 0 };
 
   try {
     await db.job.create({ data: jobRecord });

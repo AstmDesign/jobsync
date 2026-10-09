@@ -178,6 +178,12 @@ export const APP_CONSTANTS = {
   QUERY_SCRAPER_USER_AGENT:
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 
+  // Generic custom-site scraper (any Job Boards catalog entry with a
+  // websiteUrl but no dedicated scraper — see src/lib/scraper/custom). Caps
+  // how many <a> tags on the page get probed for job-title-looking text,
+  // since an arbitrary career page's total link count is unbounded.
+  CUSTOM_SCRAPER_MAX_ANCHORS_SCANNED: 400,
+
   // Indeed job source (no public API — search-results page scrape)
   INDEED_SEARCH_URL: "https://www.indeed.com/jobs",
 

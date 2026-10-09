@@ -3,16 +3,18 @@ import { APP_CONSTANTS } from "@/lib/constants";
 // Deep-import (NOT the barrel) — utils.ts is pure; the barrel pulls scraper
 // network code into the client bundle via this file's client consumers.
 import { ATS_TOKEN_REGEX } from "@/lib/scraper/utils";
-import { QUERY_BOARDS } from "./automation.model";
+import { COMPANY_MODE_BOARDS } from "./automation.model";
 
-export const JobBoardSchema = z.enum([
-  "greenhouse",
-  "lever",
-  "ashby",
-  "indeed",
-  "glassdoor",
-  "linkedin",
-]);
+// Was a fixed 6-value enum; widened to a validated string so a custom board
+// added via the Job Boards catalog (any slug, see jobBoard.actions.ts
+// slugify()) can be used as an automation's jobBoard too. The regex matches
+// exactly what slugify() produces (lowercase letters/digits, single hyphens
+// between segments, no leading/trailing hyphen).
+export const JobBoardSchema = z
+  .string()
+  .min(1)
+  .max(80)
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "Invalid job board");
 
 export const AutomationStatusSchema = z.enum(["active", "paused"]);
 
@@ -79,23 +81,30 @@ export const QueryBoardSourceConfigSchema = z.object({
   saveUnanalyzed: z.boolean().optional(),
 });
 
-export const SourceConfigSchema = z.object({
-  greenhouse: GreenhouseSourceConfigSchema.optional(),
-  lever: LeverSourceConfigSchema.optional(),
-  ashby: AshbySourceConfigSchema.optional(),
-  indeed: QueryBoardSourceConfigSchema.optional(),
-  glassdoor: QueryBoardSourceConfigSchema.optional(),
-  linkedin: QueryBoardSourceConfigSchema.optional(),
-});
+export const SourceConfigSchema = z
+  .object({
+    greenhouse: GreenhouseSourceConfigSchema.optional(),
+    lever: LeverSourceConfigSchema.optional(),
+    ashby: AshbySourceConfigSchema.optional(),
+    indeed: QueryBoardSourceConfigSchema.optional(),
+    glassdoor: QueryBoardSourceConfigSchema.optional(),
+    linkedin: QueryBoardSourceConfigSchema.optional(),
+  })
+  // Any other key is a custom catalog board (Job Boards page). Those always
+  // run through the generic custom-site scraper, which has no company/token
+  // concept, so they validate against the same keyword/location shape as
+  // Indeed/Glassdoor/LinkedIn.
+  .catchall(QueryBoardSourceConfigSchema);
 
-// Shared by create/update: company boards need >=1 company; query boards
-// need >=1 keyword (that's the actual search term, not just a filter).
+// Shared by create/update: company boards need >=1 company; query (and
+// custom) boards need >=1 keyword (that's the actual search term, not just
+// a filter).
 function validateSourceConfig(
   data: { jobBoard?: string; sourceConfig?: z.infer<typeof SourceConfigSchema> },
   ctx: z.RefinementCtx,
 ) {
   if (!data.jobBoard) return;
-  const isQueryBoard = (QUERY_BOARDS as string[]).includes(data.jobBoard);
+  const isQueryBoard = !(COMPANY_MODE_BOARDS as string[]).includes(data.jobBoard);
   const config = data.sourceConfig?.[data.jobBoard as keyof typeof data.sourceConfig];
 
   if (isQueryBoard) {

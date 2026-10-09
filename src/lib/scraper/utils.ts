@@ -94,6 +94,26 @@ export function jobDedupeKey(job: DedupableJob): string {
   return `meta:${meta}`;
 }
 
+// A second, always-computed signature (title+company only, no URL or
+// location) checked alongside jobDedupeKey. The query-mode scrapers
+// (LinkedIn/Indeed/Glassdoor guest search) embed per-search-session tracking
+// tokens or pagination state in their result-card links, and normalizeJobUrl's
+// tracking-param denylist can't anticipate every one of them — so the exact
+// same posting can come back with a different URL on each daily run and slip
+// past a URL-only dedupe key. title+company alone is a looser match (two
+// genuinely different postings for the same role at the same company would
+// collide), but for same-user daily re-scrapes that's the right trade-off:
+// a same title/company reappearing the next day is overwhelmingly the same
+// listing, not a new one.
+export function jobTitleCompanyKey(job: DedupableJob): string | null {
+  const title = canonicalizeEntityValue(job.title ?? "");
+  const company = canonicalizeEntityValue(job.company ?? "", {
+    stripLegalSuffix: true,
+  });
+  if (!title || !company) return null;
+  return `tc:${title}|${company}`;
+}
+
 // Removes jobs already saved (existingKeys) and collapses duplicates within the
 // batch itself. Every ATS source path runs through here.
 // Accepts any key lookup with `.has` so callers can pass a Set or the
@@ -106,8 +126,16 @@ export function dedupeJobs<T extends DedupableJob>(
   const result: T[] = [];
   for (const job of jobs) {
     const key = jobDedupeKey(job);
-    if (existingKeys.has(key) || seen.has(key)) continue;
+    const tcKey = jobTitleCompanyKey(job);
+    if (
+      existingKeys.has(key) ||
+      seen.has(key) ||
+      (tcKey && (existingKeys.has(tcKey) || seen.has(tcKey)))
+    ) {
+      continue;
+    }
     seen.add(key);
+    if (tcKey) seen.add(tcKey);
     result.push(job);
   }
   return result;

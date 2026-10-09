@@ -2,7 +2,7 @@ import cron, { ScheduledTask } from "node-cron";
 import { SCHEDULER_CONSTANTS } from "@/lib/constants";
 import db from "@/lib/db";
 import { runAutomation, AutomationAlreadyRunningError } from "@/lib/scraper";
-import { ATS_BOARDS, type JobBoard } from "@/models/automation.model";
+import { RETIRED_BOARDS, type JobBoard } from "@/models/automation.model";
 import { log } from "@/lib/telemetry";
 
 let scheduledTask: ScheduledTask | null = null;
@@ -18,8 +18,11 @@ async function runDueAutomations() {
       where: {
         status: "active",
         nextRunAt: { lte: now },
-        // Rows left on a retired board never fire; the UI offers only delete.
-        jobBoard: { in: ATS_BOARDS },
+        // Only a retired board (jsearch) is excluded — a custom catalog
+        // board resolves its provider dynamically at run time (see
+        // resolveAtsProvider in ats/registry.ts), so it must stay eligible
+        // here too, not just the six built-in boards.
+        jobBoard: { notIn: RETIRED_BOARDS },
       },
       include: {
         resume: true,

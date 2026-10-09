@@ -1,5 +1,9 @@
 import prisma from "@/lib/db";
-import { jobDedupeKey, normalizeJobUrl } from "@/lib/scraper/utils";
+import {
+  jobDedupeKey,
+  jobTitleCompanyKey,
+  normalizeJobUrl,
+} from "@/lib/scraper/utils";
 
 export interface ExistingJobRef {
   id: string;
@@ -27,19 +31,27 @@ export async function getExistingJobDedupeMap(
 
   const map = new Map<string, ExistingJobRef>();
   for (const job of jobs) {
+    const ref: ExistingJobRef = {
+      id: job.id,
+      title: job.JobTitle?.label ?? "",
+      company: job.Company?.label ?? "",
+    };
     const key = jobDedupeKey({
       url: job.jobUrl,
       title: job.JobTitle?.label,
       company: job.Company?.label,
       location: job.Location?.label ?? undefined,
     });
-    if (!map.has(key)) {
-      map.set(key, {
-        id: job.id,
-        title: job.JobTitle?.label ?? "",
-        company: job.Company?.label ?? "",
-      });
-    }
+    if (!map.has(key)) map.set(key, ref);
+
+    // Registered unconditionally (not just as a no-URL fallback) so a job
+    // saved under one URL still blocks a re-pull of the same title+company
+    // under a different (tracking-token-mutated) URL. See jobTitleCompanyKey.
+    const tcKey = jobTitleCompanyKey({
+      title: job.JobTitle?.label,
+      company: job.Company?.label,
+    });
+    if (tcKey && !map.has(tcKey)) map.set(tcKey, ref);
   }
   return map;
 }

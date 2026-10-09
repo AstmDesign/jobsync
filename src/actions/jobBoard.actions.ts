@@ -61,15 +61,18 @@ export const createJobBoard = async (input: {
       _max: { sortOrder: true },
     });
 
+    const websiteUrl = input.websiteUrl?.trim() || null;
+
     const board = await prisma.jobBoard.create({
       data: {
         slug,
         label,
-        websiteUrl: input.websiteUrl?.trim() || null,
+        websiteUrl,
         description: input.description?.trim() || null,
-        // New boards are catalog-only by default — nothing added through
-        // this form has a scraper module wired up yet.
-        isSupported: false,
+        // A board with a website URL can run via the generic custom-site
+        // scraper (src/lib/scraper/custom) — only a board with no URL at
+        // all stays catalog-only ("coming soon") until one is added.
+        isSupported: !!websiteUrl,
         isActive: true,
         sortOrder: (maxSort._max.sortOrder ?? 0) + 10,
       },
@@ -89,13 +92,28 @@ export const updateJobBoard = async (
   try {
     await requireUser();
 
+    const existing = await prisma.jobBoard.findUnique({ where: { id: jobBoardId } });
+    if (!existing) {
+      throw new Error("Job board not found.");
+    }
+
     const data: Record<string, unknown> = {};
     if (input.label !== undefined) {
       const label = input.label.trim();
       if (!label) throw new Error("Job board name cannot be empty.");
       data.label = label;
     }
-    if (input.websiteUrl !== undefined) data.websiteUrl = input.websiteUrl.trim() || null;
+    if (input.websiteUrl !== undefined) {
+      const url = input.websiteUrl.trim() || null;
+      data.websiteUrl = url;
+      // Built-in boards (Greenhouse/Lever/Ashby/Indeed/Glassdoor/LinkedIn)
+      // keep their dedicated scraper regardless of URL edits. Every other
+      // board becomes runnable via the generic custom-site scraper once it
+      // has a URL — and catalog-only again if the URL is cleared.
+      if (!ATS_BOARDS.includes(existing.slug as (typeof ATS_BOARDS)[number])) {
+        data.isSupported = !!url;
+      }
+    }
     if (input.description !== undefined) data.description = input.description.trim() || null;
     if (input.isActive !== undefined) data.isActive = input.isActive;
 

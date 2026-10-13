@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -55,8 +55,18 @@ export function useWizardForm({
     },
   });
 
+  // Only re-seed the form on the closed->open transition, not on every
+  // `editAutomation` reference change. The caller (AutomationDetailContainer)
+  // passes its live `automation` state as `editAutomation`, which gets a new
+  // object identity whenever a background refresh runs (SSE run-watcher
+  // completing a run, pause/resume, etc.). Resetting on every such change
+  // while the wizard is already open would silently discard whatever the
+  // user had just typed (e.g. Target job titles) and replace it with the
+  // stale pre-edit DB values — the dialog being open means the edit is still
+  // in progress and must not be clobbered by data that refreshed underneath it.
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (open) {
+    if (open && !wasOpenRef.current) {
       form.reset({
         name: editAutomation?.name ?? "",
         jobBoard: (editAutomation?.jobBoard as JobBoard) ?? "greenhouse",
@@ -69,7 +79,9 @@ export function useWizardForm({
       });
       setStep(0);
     }
-  }, [open, editAutomation, form]);
+    wasOpenRef.current = open;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: see comment above, must not re-run on editAutomation identity changes while open.
+  }, [open]);
 
   const formValues = form.watch();
 

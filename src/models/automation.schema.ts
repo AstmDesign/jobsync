@@ -73,7 +73,15 @@ export const AshbySourceConfigSchema = GreenhouseSourceConfigSchema.extend({
 });
 
 // Query-based boards search directly by keyword — no company/token concept.
+// targetTitles was missing here until it was noticed that edits to
+// Indeed/Glassdoor/LinkedIn (and any custom catalog board, which also
+// validates against this schema via SourceConfigSchema's catchall) silently
+// dropped the "Target job titles" field: z.object() strips keys that aren't
+// declared, so it parsed out before ever reaching the DB. targetTitles is
+// still only a ranking signal here (keywords remain the actual search query
+// for these boards), same as it is for the company-mode boards below.
 export const QueryBoardSourceConfigSchema = z.object({
+  targetTitles: z.array(z.string().min(1).max(100)).optional(),
   keywords: z.array(z.string().min(1).max(100)).min(1),
   locations: z.array(z.string().min(1).max(100)).optional(),
   strictLocation: z.boolean().optional(),

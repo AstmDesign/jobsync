@@ -52,6 +52,10 @@ export interface JobResponse {
   applied: boolean;
   resumeId?: string;
   Resume?: Resume;
+  // The CV the match score was produced against (JOB_LIST_SELECT fetches only
+  // id + title). Distinct from Resume above, which is the manually attached one.
+  matchResumeId?: string | null;
+  MatchResume?: { id: string; title: string } | null;
   coverLetterId?: string;
   CoverLetter?: CoverLetter;
   matchScore?: number | null;

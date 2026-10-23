@@ -4,6 +4,7 @@ import {
   createJobSource,
   deleteJobById,
   getJobDetails,
+  getJobsIterator,
   getJobsList,
   getJobSourceList,
   getStatusList,
@@ -49,7 +50,9 @@ vi.mock("@prisma/client", () => {
     },
     jobTitle: { count: vi.fn() },
     company: { count: vi.fn() },
-    resume: { count: vi.fn() },
+    // findFirst: saveJobMatchResult resolves matchData.resumeId against the
+    // user's own resumes before writing the matchResumeId FK.
+    resume: { count: vi.fn(), findFirst: vi.fn() },
     coverLetter: { count: vi.fn() },
     tag: { count: vi.fn() },
   };
@@ -224,6 +227,37 @@ describe("jobActions", () => {
       expect(result).toEqual({
         success: false,
         message: "Not authenticated",
+      });
+    });
+
+    describe("matched CV filter", () => {
+      it("should constrain on matchResumeId when the 10th argument is given", async () => {
+        (getCurrentUser as any).mockResolvedValue(mockUser);
+        const { data, total } = await getMockJobsList(1, 10);
+        (prisma.job.findMany as any).mockResolvedValue(data);
+        (prisma.job.count as any).mockResolvedValue(total);
+
+        await getJobsList(
+          1, 10, undefined, undefined, undefined, undefined, undefined,
+          undefined, undefined, "resume-2",
+        );
+
+        const where = (prisma.job.findMany as any).mock.calls[0][0].where;
+        // A plain scalar equality, not a nested relation filter: the column is
+        // a denormalized FK, so no join is needed to filter on it.
+        expect(where.matchResumeId).toBe("resume-2");
+      });
+
+      it("should leave matchResumeId unset when no CV filter is given", async () => {
+        (getCurrentUser as any).mockResolvedValue(mockUser);
+        const { data, total } = await getMockJobsList(1, 10);
+        (prisma.job.findMany as any).mockResolvedValue(data);
+        (prisma.job.count as any).mockResolvedValue(total);
+
+        await getJobsList(1, 10);
+
+        const where = (prisma.job.findMany as any).mock.calls[0][0].where;
+        expect("matchResumeId" in where).toBe(false);
       });
     });
 
@@ -767,6 +801,99 @@ describe("jobActions", () => {
       });
     });
   });
+  // The CSV export streams through this, so "export the filtered jobs" is
+  // entirely a property of the where clause it builds.
+  describe("getJobsIterator", () => {
+    const drain = async (iterator: AsyncGenerator<any>) => {
+      const rows: any[] = [];
+      for await (const chunk of iterator) rows.push(...chunk);
+      return rows;
+    };
+
+    it("should apply the same filters as the jobs list", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      (prisma.job.findMany as any).mockResolvedValue([]);
+
+      await drain(
+        getJobsIterator({
+          filter: "applied",
+          companyValue: "acme",
+          titleValue: "software-engineer",
+          locationValue: "remote",
+          sourceValue: "indeed",
+          matchResumeId: "resume-2",
+          appliedOnly: true,
+        }),
+      );
+
+      const where = (prisma.job.findMany as any).mock.calls[0][0].where;
+      expect(where.userId).toBe(mockUser.id);
+      expect(where.Status).toEqual({ value: "applied" });
+      expect(where.Company).toEqual({ value: "acme" });
+      expect(where.JobTitle).toEqual({ value: "software-engineer" });
+      expect(where.Location).toEqual({ value: "remote" });
+      expect(where.JobSource).toEqual({ value: "indeed" });
+      expect(where.matchResumeId).toBe("resume-2");
+      expect(where.applied).toBe(true);
+    });
+
+    it("should scope to the user only when no filters are given", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      (prisma.job.findMany as any).mockResolvedValue([]);
+
+      await drain(getJobsIterator());
+
+      const where = (prisma.job.findMany as any).mock.calls[0][0].where;
+      expect(where.userId).toBe(mockUser.id);
+      expect("matchResumeId" in where).toBe(false);
+      expect("Company" in where).toBe(false);
+    });
+
+    it("should page by cursor until a short chunk comes back", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      const page = (ids: string[]) =>
+        ids.map((id) => ({ id, matchScore: null, matchData: null }));
+      (prisma.job.findMany as any)
+        .mockResolvedValueOnce(page(["a", "b"]))
+        .mockResolvedValueOnce(page(["c"]));
+
+      const rows = await drain(getJobsIterator({}, 2));
+
+      expect(rows.map((r) => r.id)).toEqual(["a", "b", "c"]);
+      // First page has no cursor; the second resumes after the last id and
+      // skips it so the row isn't yielded twice.
+      expect((prisma.job.findMany as any).mock.calls[0][0].cursor).toBeUndefined();
+      expect((prisma.job.findMany as any).mock.calls[1][0]).toMatchObject({
+        cursor: { id: "b" },
+        skip: 1,
+      });
+      expect(prisma.job.findMany).toHaveBeenCalledTimes(2);
+    });
+
+    it("should hide a keyword-only pre-rank score and drop matchData", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      (prisma.job.findMany as any).mockResolvedValue([
+        {
+          id: "unanalyzed",
+          matchScore: 28,
+          matchData: JSON.stringify({ analyzed: false }),
+        },
+        {
+          id: "analyzed",
+          matchScore: 71,
+          matchData: JSON.stringify({ matchScore: 71 }),
+        },
+      ]);
+
+      const rows = await drain(getJobsIterator());
+
+      expect(rows).toStrictEqual([
+        { id: "unanalyzed", matchScore: null },
+        { id: "analyzed", matchScore: 71 },
+      ]);
+    });
+  });
+
   describe("getJobDetails", () => {
     it("should throw error when jobId is not provided", async () => {
       await expect(getJobDetails("")).resolves.toStrictEqual({
@@ -1365,25 +1492,85 @@ describe("jobActions", () => {
       expect(prisma.job.update).not.toHaveBeenCalled();
     });
 
+    const matchDataWithResume = JSON.stringify({
+      matchScore: 85,
+      summary: "Good match",
+      resumeId: "resume-1",
+      resumeTitle: "My Resume",
+      matchedAt: "2026-03-29T00:00:00.000Z",
+    });
+
     it("should save match score and data successfully", async () => {
       (getCurrentUser as any).mockResolvedValue(mockUser);
       (prisma.job.update as any).mockResolvedValue({});
+      (prisma as any).resume.findFirst.mockResolvedValue({ id: "resume-1" });
 
-      const matchData = JSON.stringify({
-        matchScore: 85,
-        summary: "Good match",
-        resumeId: "resume-1",
-        resumeTitle: "My Resume",
-        matchedAt: "2026-03-29T00:00:00.000Z",
-      });
-
-      const result = await saveJobMatchResult("job-id", 85, matchData);
+      const result = await saveJobMatchResult("job-id", 85, matchDataWithResume);
 
       expect(result).toStrictEqual({ success: true });
       expect(prisma.job.update).toHaveBeenCalledTimes(1);
       expect(prisma.job.update).toHaveBeenCalledWith({
         where: { id: "job-id", userId: mockUser.id },
-        data: { matchScore: 85, matchData },
+        data: {
+          matchScore: 85,
+          matchData: matchDataWithResume,
+          matchResumeId: "resume-1",
+        },
+      });
+    });
+
+    it("should scope the resume lookup to the caller's own profiles", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      (prisma.job.update as any).mockResolvedValue({});
+      (prisma as any).resume.findFirst.mockResolvedValue({ id: "resume-1" });
+
+      await saveJobMatchResult("job-id", 85, matchDataWithResume);
+
+      expect((prisma as any).resume.findFirst).toHaveBeenCalledWith({
+        where: { id: "resume-1", profile: { userId: mockUser.id } },
+        select: { id: true },
+      });
+    });
+
+    it("should omit matchResumeId when the embedded resume no longer resolves", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      (prisma.job.update as any).mockResolvedValue({});
+      // Deleted, or belonging to someone else — must not trip the foreign key.
+      (prisma as any).resume.findFirst.mockResolvedValue(null);
+
+      await saveJobMatchResult("job-id", 85, matchDataWithResume);
+
+      expect(prisma.job.update).toHaveBeenCalledWith({
+        where: { id: "job-id", userId: mockUser.id },
+        data: { matchScore: 85, matchData: matchDataWithResume },
+      });
+    });
+
+    it("should not look up a resume when matchData carries no resumeId", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      (prisma.job.update as any).mockResolvedValue({});
+
+      const matchData = JSON.stringify({ matchScore: 60 });
+      await saveJobMatchResult("job-id", 60, matchData);
+
+      expect((prisma as any).resume.findFirst).not.toHaveBeenCalled();
+      expect(prisma.job.update).toHaveBeenCalledWith({
+        where: { id: "job-id", userId: mockUser.id },
+        data: { matchScore: 60, matchData },
+      });
+    });
+
+    it("should still save when matchData is not valid JSON", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      (prisma.job.update as any).mockResolvedValue({});
+
+      const result = await saveJobMatchResult("job-id", 40, "not json");
+
+      expect(result).toStrictEqual({ success: true });
+      expect((prisma as any).resume.findFirst).not.toHaveBeenCalled();
+      expect(prisma.job.update).toHaveBeenCalledWith({
+        where: { id: "job-id", userId: mockUser.id },
+        data: { matchScore: 40, matchData: "not json" },
       });
     });
 

@@ -1,5 +1,13 @@
 "use client";
-import { File, Globe, ListFilter, MapPin, RefreshCw, X } from "lucide-react";
+import {
+  File,
+  FileText,
+  Globe,
+  ListFilter,
+  MapPin,
+  RefreshCw,
+  X,
+} from "lucide-react";
 import { CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { SearchInput } from "../../SearchInput";
@@ -26,6 +34,7 @@ import {
   JobTitle,
   Tag,
 } from "@/models/job.model";
+import type { MatchResumeOption } from "./useJobFilters";
 
 // Presentational: the Jobs card header — title/count, active filter chips,
 // view toggle, search, filter select, export and Add Job.
@@ -43,10 +52,14 @@ export function JobsToolbar({
   onClearLocationFilter,
   sourceLabel,
   onClearSourceFilter,
+  matchResumeLabel,
+  onClearMatchResumeFilter,
   locationFilter,
   onLocationFilterChange,
   sourceFilter,
   onSourceFilterChange,
+  matchResumeFilter,
+  onMatchResumeFilterChange,
   onReload,
   searchTerm,
   onSearchTermChange,
@@ -58,8 +71,11 @@ export function JobsToolbar({
   titles,
   locations,
   sources,
-  filterLocations,
-  filterSources,
+  // Defaulted: these dropdowns are purely additive, so a caller that doesn't
+  // supply them should render without them rather than crash on .length.
+  filterLocations = [],
+  filterSources = [],
+  filterMatchResumes = [],
   tags,
   editJob,
   resetEditJob,
@@ -78,10 +94,14 @@ export function JobsToolbar({
   onClearLocationFilter: () => void;
   sourceLabel?: string | null;
   onClearSourceFilter: () => void;
+  matchResumeLabel?: string | null;
+  onClearMatchResumeFilter: () => void;
   locationFilter?: string | null;
   onLocationFilterChange: (value: string) => void;
   sourceFilter?: string | null;
   onSourceFilterChange: (value: string) => void;
+  matchResumeFilter?: string | null;
+  onMatchResumeFilterChange: (value: string) => void;
   onReload: () => void;
   searchTerm: string;
   onSearchTermChange: (value: string) => void;
@@ -93,8 +113,9 @@ export function JobsToolbar({
   titles: JobTitle[];
   locations: JobLocation[];
   sources: JobSource[];
-  filterLocations: JobLocation[];
-  filterSources: JobSource[];
+  filterLocations?: JobLocation[];
+  filterSources?: JobSource[];
+  filterMatchResumes?: MatchResumeOption[];
   tags: Tag[];
   editJob: JobResponse | null;
   resetEditJob: () => void;
@@ -143,6 +164,15 @@ export function JobsToolbar({
             className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
           >
             {sourceLabel}
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {matchResumeLabel && (
+          <button
+            onClick={onClearMatchResumeFilter}
+            className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
+          >
+            {matchResumeLabel}
             <X className="h-3.5 w-3.5" />
           </button>
         )}
@@ -237,11 +267,43 @@ export function JobsToolbar({
             </SelectContent>
           </Select>
         )}
+        {filterMatchResumes.length > 0 && (
+          <Select
+            value={matchResumeFilter ?? undefined}
+            onValueChange={onMatchResumeFilterChange}
+          >
+            <SelectTrigger
+              className="w-[150px] h-8"
+              data-testid="job-match-resume-filter-select"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <SelectValue placeholder="Matched CV" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Matched CV</SelectLabel>
+                <SelectSeparator />
+                {filterMatchResumes.map((resume) => (
+                  <SelectItem key={resume.id} value={resume.id}>
+                    {resume.title}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        )}
         <Button
           size="sm"
           variant="outline"
           className="h-8 gap-1"
           disabled={initialLoading}
+          // totalJobs is the count for the active filters, not the whole
+          // table, so it's the honest promise to make here.
+          title={
+            totalJobs > 0
+              ? `Export the ${totalJobs} matching job${totalJobs === 1 ? "" : "s"} as CSV`
+              : "Export jobs as CSV"
+          }
           onClick={onDownload}
         >
           <File className="h-3.5 w-3.5" />

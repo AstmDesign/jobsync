@@ -52,6 +52,10 @@ export async function persistDiscoveredJob(
     matchScore,
     matchData: JSON.stringify(matchData),
     skillTerms,
+    // The automation owns the resume every job in this run was scored against,
+    // so record it on the row rather than relying on the matchData blob (which
+    // is empty for pre-rank/unanalyzed saves).
+    matchResumeId: automation.resumeId,
   });
 
   // Race-condition backstop for the point-in-time dedup check the caller

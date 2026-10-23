@@ -89,6 +89,9 @@ export async function handleSaveMatchResult(
       data: {
         matchScore: parsed.scores.matchScore,
         matchData: JSON.stringify(matchData),
+        // Already resolved under a profile.userId scope above, so writing the
+        // FK directly can't point at another user's resume.
+        ...(resume?.id ? { matchResumeId: resume.id } : {}),
       },
     });
   } catch (error: any) {

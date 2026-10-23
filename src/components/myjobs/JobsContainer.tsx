@@ -22,7 +22,10 @@ import { useRouter } from "next/navigation";
 import MyJobsTable from "./MyJobsTable";
 import MyJobsGrid from "./MyJobsGrid";
 import { NoteDialog } from "./NoteDialog";
-import { useJobFilters } from "./jobs-container/useJobFilters";
+import {
+  useJobFilters,
+  type MatchResumeOption,
+} from "./jobs-container/useJobFilters";
 import { useJobsList } from "./jobs-container/useJobsList";
 import { downloadJobsList } from "./jobs-container/downloadJobsCsv";
 import { JobsToolbar } from "./jobs-container/JobsToolbar";
@@ -38,8 +41,11 @@ type MyJobsProps = {
   // education, experience, and job sources/locations created but never
   // applied to a job) so the full lists above aren't right for the filter
   // dropdown — these are pre-filtered to values actually used on a job.
-  filterLocations: JobLocation[];
-  filterSources: JobSource[];
+  filterLocations?: JobLocation[];
+  filterSources?: JobSource[];
+  // Resumes recorded as the match CV on at least one job — see
+  // getMatchResumesInUse. Keyed by id, since Resume has no canonical value.
+  filterMatchResumes?: MatchResumeOption[];
 };
 
 function JobsContainer({
@@ -49,8 +55,9 @@ function JobsContainer({
   locations,
   sources,
   tags,
-  filterLocations,
-  filterSources,
+  filterLocations = [],
+  filterSources = [],
+  filterMatchResumes = [],
 }: MyJobsProps) {
   const router = useRouter();
   const [editJob, setEditJob] = useState(null);
@@ -63,18 +70,28 @@ function JobsContainer({
     titleFilter,
     locationFilter,
     sourceFilter,
+    matchResumeFilter,
     appliedFilter,
     companyLabel,
     titleLabel,
     locationLabel,
     sourceLabel,
+    matchResumeLabel,
     clearCompanyFilter,
     clearTitleFilter,
     clearLocationFilter,
     clearSourceFilter,
+    clearMatchResumeFilter,
     selectLocationFilter,
     selectSourceFilter,
-  } = useJobFilters({ companies, titles, locations, sources });
+    selectMatchResumeFilter,
+  } = useJobFilters({
+    companies,
+    titles,
+    locations,
+    sources,
+    matchResumes: filterMatchResumes,
+  });
 
   const {
     jobs,
@@ -96,6 +113,7 @@ function JobsContainer({
     titleFilter,
     locationFilter,
     sourceFilter,
+    matchResumeFilter,
   });
 
   const onDeleteJob = async (jobId: string) => {
@@ -144,6 +162,20 @@ function JobsContainer({
     setNoteDialogOpen(true);
   };
 
+  // Export the current result set, not the whole table: the same filter state
+  // that produced the rows on screen is posted to the CSV endpoint.
+  const onDownload = () =>
+    downloadJobsList({
+      filter: filterKey,
+      search: searchTerm || undefined,
+      companyValue: companyFilter || undefined,
+      titleValue: titleFilter || undefined,
+      locationValue: locationFilter || undefined,
+      sourceValue: sourceFilter || undefined,
+      matchResumeId: matchResumeFilter || undefined,
+      appliedOnly: appliedFilter || undefined,
+    });
+
   return (
     <>
       <Card x-chunk="dashboard-06-chunk-0">
@@ -161,16 +193,20 @@ function JobsContainer({
           onClearLocationFilter={clearLocationFilter}
           sourceLabel={sourceLabel}
           onClearSourceFilter={clearSourceFilter}
+          matchResumeLabel={matchResumeLabel}
+          onClearMatchResumeFilter={clearMatchResumeFilter}
           locationFilter={locationFilter}
           onLocationFilterChange={selectLocationFilter}
           sourceFilter={sourceFilter}
           onSourceFilterChange={selectSourceFilter}
+          matchResumeFilter={matchResumeFilter}
+          onMatchResumeFilterChange={selectMatchResumeFilter}
           onReload={() => loadJobs(1, filterKey, searchTerm || undefined)}
           searchTerm={searchTerm}
           onSearchTermChange={setSearchTerm}
           filterKey={filterKey}
           onFilterChange={onFilterChange}
-          onDownload={downloadJobsList}
+          onDownload={onDownload}
           statuses={statuses}
           companies={companies}
           titles={titles}
@@ -178,6 +214,7 @@ function JobsContainer({
           sources={sources}
           filterLocations={filterLocations}
           filterSources={filterSources}
+          filterMatchResumes={filterMatchResumes}
           tags={tags}
           editJob={editJob}
           resetEditJob={resetEditJob}

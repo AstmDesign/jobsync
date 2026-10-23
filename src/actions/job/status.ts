@@ -4,6 +4,7 @@ import { handleError } from "@/lib/utils";
 import { JobStatus } from "@/models/job.model";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "../shared";
+import { resolveMatchResumeId } from "@/lib/jobs/matchResume";
 
 export const updateJobStatus = async (
   jobId: string,
@@ -70,10 +71,18 @@ export const saveJobMatchResult = async (
       companyLabel = job?.Company?.label;
     }
 
+    // Denormalize the resume out of the JSON blob so the jobs list can filter
+    // and display it. Null when the blob carries no (or a stale) resume id.
+    const matchResumeId = await resolveMatchResumeId(matchData, user.id);
+
     await prisma.$transaction([
       prisma.job.update({
         where: { id: jobId, userId: user.id },
-        data: { matchScore, matchData },
+        data: {
+          matchScore,
+          matchData,
+          ...(matchResumeId ? { matchResumeId } : {}),
+        },
       }),
       prisma.matchResult.create({
         data: {

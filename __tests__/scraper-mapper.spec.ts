@@ -48,6 +48,7 @@ const baseInput = {
   matchScore: 88,
   matchData: "{}",
   skillTerms: [],
+  matchResumeId: "resume-1",
 };
 
 beforeEach(() => {

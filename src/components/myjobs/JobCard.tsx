@@ -1,5 +1,5 @@
 "use client";
-import { Calendar, CalendarPlus, Check, MapPin, PlusCircle, StickyNote } from "lucide-react";
+import { Calendar, CalendarPlus, Check, FileText, MapPin, PlusCircle, StickyNote } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { Badge } from "../ui/badge";
@@ -98,6 +98,15 @@ export function JobCard({
           <span className="flex min-w-0 items-center gap-1">
             <PlusCircle className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{job.JobSource.label}</span>
+          </span>
+        )}
+        {job.MatchResume?.title && (
+          <span
+            className="flex min-w-0 items-center gap-1"
+            title={`Matched against ${job.MatchResume.title}`}
+          >
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{job.MatchResume.title}</span>
           </span>
         )}
       </div>

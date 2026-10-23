@@ -138,6 +138,46 @@ describe("MyJobsTable", () => {
     }
   });
 
+  it("shows the matched CV title, and an em dash when no CV was matched", () => {
+    const { rerender } = renderTable([
+      makeJob({
+        matchScore: 80,
+        MatchResume: { id: "resume-2", title: "QA CV" },
+      }),
+    ]);
+    expect(screen.getByText("QA CV")).toBeInTheDocument();
+
+    rerender(
+      <MyJobsTable
+        jobs={[makeJob({ MatchResume: null })]}
+        jobStatuses={mockStatuses}
+        deleteJob={vi.fn()}
+        deleteJobs={vi.fn()}
+        editJob={vi.fn()}
+        onChangeJobStatus={vi.fn()}
+        onAddNote={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("QA CV")).not.toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("sorts by matched CV title", async () => {
+    const user = userEvent.setup();
+    renderTable([
+      makeJob({ id: "job-1", MatchResume: { id: "r2", title: "QA CV" } }),
+      makeJob({ id: "job-2", MatchResume: { id: "r1", title: "Backend CV" } }),
+    ]);
+
+    await user.click(
+      screen.getByRole("button", { name: /Sort Matched CV column/i }),
+    );
+
+    const cells = screen.getAllByText(/CV$/);
+    expect(cells[0]).toHaveTextContent("Backend CV");
+    expect(cells[1]).toHaveTextContent("QA CV");
+  });
+
   it("shows a notes count badge only when the job has notes", () => {
     const { rerender } = renderTable([makeJob({ _count: { Notes: 3 } })]);
     expect(screen.getByText("3")).toBeInTheDocument();

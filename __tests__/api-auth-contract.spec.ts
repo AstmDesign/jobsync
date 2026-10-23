@@ -46,7 +46,7 @@ describe("API auth contract: guarded routes reject anonymous requests", () => {
   });
 
   it("POST /api/jobs/export -> 401", async () => {
-    const res = await exportJobs();
+    const res = await exportJobs(req());
     expect(res.status).toBe(401);
   });
 

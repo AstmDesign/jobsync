@@ -54,6 +54,7 @@ function MyJobsTable({
         case "location": return job.Location?.label ?? "";
         case "status": return job.Status?.label ?? "";
         case "match": return job.matchScore ?? -1;
+        case "matchResume": return job.MatchResume?.title ?? "";
         case "source": return job.JobSource?.label ?? "";
         case "appliedDate": return job.appliedDate?.getTime() ?? 0;
         case "createdAt": return job.createdAt?.getTime() ?? 0;
@@ -124,6 +125,7 @@ function MyJobsTable({
             {sortableHead("Location", "location", "hidden md:table-cell")}
             {sortableHead("Status", "status")}
             {sortableHead("Match", "match", "hidden md:table-cell text-center")}
+            {sortableHead("Matched CV", "matchResume", "hidden md:table-cell")}
             {sortableHead("Source", "source", "hidden md:table-cell")}
             <TableHead>
               <span className="sr-only">Actions</span>
@@ -188,6 +190,15 @@ function MyJobsTable({
                     />
                   ) : (
                     <MatchJobButton jobId={job.id} />
+                  )}
+                </TableCell>
+                <TableCell className="hidden md:table-cell max-w-[140px]">
+                  {job.MatchResume ? (
+                    <span className="block truncate" title={job.MatchResume.title}>
+                      {job.MatchResume.title}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">&mdash;</span>
                   )}
                 </TableCell>
                 <TableCell className="hidden md:table-cell">

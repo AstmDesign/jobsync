@@ -153,7 +153,9 @@ export async function analyzeDiscoveredJob(jobId: string): Promise<{
 
     await db.job.update({
       where: { id: jobId, userId: user.id },
-      data: { matchScore: scores.matchScore, matchData },
+      // resumeId comes from this job's own automation, so it's already scoped
+      // to the user and safe to write to the FK column directly.
+      data: { matchScore: scores.matchScore, matchData, matchResumeId: resumeId },
     });
 
     return { success: true, matchScore: scores.matchScore };

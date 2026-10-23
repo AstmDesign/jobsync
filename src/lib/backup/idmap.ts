@@ -14,6 +14,7 @@ const OPTIONAL_FKS = new Set<string>([
   "Job.jobSourceId",
   "Job.locationId",
   "Job.resumeId",
+  "Job.matchResumeId",
   "Job.coverLetterId",
   "Job.automationId",
   "Contact.interviewId",

@@ -87,7 +87,10 @@ model Resume {
   profile        Profile         @relation(fields: [profileId], references: [id])
   File           File?           @relation(fields: [FileId], references: [id])
   FileId         String?         @unique
-  Job            Job[]
+  // Jobs this resume is manually attached to (for applying).
+  Job            Job[]           @relation("JobAttachedResume")
+  // Jobs whose match score was produced against this resume.
+  matchedJobs    Job[]           @relation("JobMatchResume")
   Automation     Automation[]
   defaultForUser User[]          @relation("UserDefaultResume")
   reviewData     String?
@@ -422,8 +425,17 @@ model Job {
   Location    Location?   @relation(fields: [locationId], references: [id])
   locationId  String?
   Interview   Interview[]
-  Resume        Resume?      @relation(fields: [resumeId], references: [id])
+  Resume        Resume?      @relation("JobAttachedResume", fields: [resumeId], references: [id])
   resumeId      String?
+  // The resume a match score was actually produced against. Deliberately
+  // separate from resumeId above, which is the resume manually attached to
+  // the job for applying: an automation scores against its own configured
+  // resume and never sets resumeId, so the two can differ or be set
+  // independently. SetNull so deleting a resume neither blocks the delete nor
+  // orphans the job. Denormalized from matchData.resumeId (which stays as the
+  // provenance record) because SQLite can't index inside a JSON string.
+  MatchResume   Resume?      @relation("JobMatchResume", fields: [matchResumeId], references: [id], onDelete: SetNull)
+  matchResumeId String?
   CoverLetter   CoverLetter? @relation(fields: [coverLetterId], references: [id])
   coverLetterId String?
   Notes         Note[]
@@ -448,6 +460,7 @@ model Job {
 
   @@index([userId, automationId])
   @@index([userId, discoveryStatus])
+  @@index([matchResumeId])
   // Also has a hand-written partial unique index (not expressible here):
   // UNIQUE(userId, jobUrl) WHERE automationId IS NOT NULL
   // See migrations/20260710000002_job_automation_url_unique

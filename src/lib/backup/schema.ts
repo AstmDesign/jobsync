@@ -207,6 +207,9 @@ const Job = z.object({
   resumeId: optId,
   coverLetterId: optId,
   automationId: optId,
+  // Optional on top of nullable: backups taken before the matchResumeId column
+  // existed have no such key, and must still import.
+  matchResumeId: optId.optional(),
   matchScore: optInt,
   matchData: optStr,
   discoveryStatus: optStr,

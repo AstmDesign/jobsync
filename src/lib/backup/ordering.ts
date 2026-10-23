@@ -133,6 +133,7 @@ export const MODEL_SPECS: Record<BackupModel, ModelSpec> = {
       jobSourceId: "JobSource",
       locationId: "Location",
       resumeId: "Resume",
+      matchResumeId: "Resume",
       coverLetterId: "CoverLetter",
       automationId: "Automation",
     },

@@ -52,6 +52,29 @@ export const getJobSourcesInUse = async (): Promise<any | undefined> => {
   }
 };
 
+// Resumes that are actually recorded as the match CV on at least one of the
+// user's jobs — populates the "Matched CV" filter dropdown. Same rationale as
+// getJobSourcesInUse: offering every resume would list options that filter to
+// nothing. Returns { id, title } because the filter keys off the resume id, not
+// a canonical value (Resume has no value column).
+export const getMatchResumesInUse = async (): Promise<any | undefined> => {
+  try {
+    const user = await requireUser();
+    const list = await prisma.resume.findMany({
+      where: {
+        profile: { userId: user.id },
+        matchedJobs: { some: { userId: user.id } },
+      },
+      select: { id: true, title: true },
+      orderBy: { title: "asc" },
+    });
+    return list;
+  } catch (error) {
+    const msg = "Failed to fetch matched resume list. ";
+    return handleError(error, msg);
+  }
+};
+
 export const createLocation = async (
   label: string,
 ): Promise<any | undefined> => {

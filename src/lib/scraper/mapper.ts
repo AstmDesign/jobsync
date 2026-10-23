@@ -39,6 +39,11 @@ interface MapperInput {
   matchScore: number;
   matchData: string;
   skillTerms: SkillTerm[];
+  // The automation's configured resume — the CV this score was produced
+  // against. Required (Automation.resumeId is non-null) so discovered jobs
+  // always record their provenance, even pre-rank ones whose matchData blob
+  // carries no resumeId.
+  matchResumeId: string;
 }
 
 interface MapperOutput {
@@ -57,6 +62,7 @@ interface MapperOutput {
   locationId: string | null;
   matchScore: number;
   matchData: string;
+  matchResumeId: string;
   discoveryStatus: DiscoveryStatus;
   discoveredAt: Date;
   tags?: { connect: Array<{ id: string }> };
@@ -65,8 +71,15 @@ interface MapperOutput {
 export async function mapScrapedJobToJobRecord(
   input: MapperInput
 ): Promise<MapperOutput> {
-  const { scrapedJob, userId, automationId, matchScore, matchData, skillTerms } =
-    input;
+  const {
+    scrapedJob,
+    userId,
+    automationId,
+    matchScore,
+    matchData,
+    skillTerms,
+    matchResumeId,
+  } = input;
 
   // Shares the same resolve-or-create helpers (and canonical match key) as the
   // add_job path, so a company/title discovered here resolves to the same
@@ -108,6 +121,7 @@ export async function mapScrapedJobToJobRecord(
     locationId: location?.id ?? null,
     matchScore,
     matchData,
+    matchResumeId,
     discoveryStatus: "new",
     discoveredAt: new Date(),
     ...(tagIds.length > 0

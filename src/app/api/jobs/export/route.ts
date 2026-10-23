@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import Papa from "papaparse";
 import { PassThrough } from "node:stream";
 import { getJobsIterator } from "@/actions/job.actions";
+import type { JobsListFilters } from "@/actions/job/queries";
 import { format } from "date-fns";
 import { auth } from "@/auth";
 import { getWorkplaceTypeLabel } from "@/models/job.model";
@@ -19,6 +21,10 @@ const FIELDS: string[] = [
   "Location",
   "JobSource",
   "Status",
+  "salaryRange",
+  "matchScore",
+  "matchedCV",
+  "jobUrl",
 ];
 
 const extractLabel = (field: { label?: string } | undefined): string => {
@@ -58,13 +64,48 @@ const transformJobData = (
     Location: extractLabel(job.Location),
     JobSource: extractLabel(job.JobSource),
     Status: extractLabel(job.Status),
+    salaryRange: job.salaryRange || "N/A",
+    // hideUnanalyzedScore has already nulled a keyword-only pre-rank, so an
+    // empty cell here means "not analyzed" rather than "scored zero".
+    matchScore: typeof job.matchScore === "number" ? job.matchScore : "",
+    matchedCV: job.MatchResume?.title ?? "",
+    jobUrl: job.jobUrl || "",
   };
 };
 
-export const POST = async () => {
+const asString = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim().length > 0 ? value : undefined;
+
+// The body is client-supplied, so each key is read individually rather than
+// spread into the where clause — an arbitrary object reaching Prisma would let
+// the caller filter on anything, including other users' rows.
+const parseFilters = (body: unknown): JobsListFilters => {
+  const raw = (body ?? {}) as Record<string, unknown>;
+  return {
+    filter: asString(raw.filter),
+    search: asString(raw.search),
+    companyValue: asString(raw.companyValue),
+    titleValue: asString(raw.titleValue),
+    locationValue: asString(raw.locationValue),
+    sourceValue: asString(raw.sourceValue),
+    matchResumeId: asString(raw.matchResumeId),
+    appliedOnly: raw.appliedOnly === true,
+  };
+};
+
+export const POST = async (req: NextRequest) => {
   const session = await auth();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Older callers posted no body at all, and an empty body must still mean
+  // "export everything" rather than a 500.
+  let filters: JobsListFilters = {};
+  try {
+    filters = parseFilters(await req.json());
+  } catch {
+    filters = {};
   }
 
   const passThrough = new PassThrough();
@@ -74,7 +115,7 @@ export const POST = async () => {
   (async () => {
     try {
       let recordIndex = 0;
-      for await (const chunk of getJobsIterator()) {
+      for await (const chunk of getJobsIterator(filters)) {
         if (hasError) break;
         const transformedData = chunk.map((job, idx) =>
           transformJobData(job, recordIndex + idx)
@@ -92,16 +133,8 @@ export const POST = async () => {
     } catch (error) {
       hasError = true;
       log.error("Error streaming jobs CSV", { error: String(error) });
-      if (error instanceof Error) {
-        return NextResponse.json(
-          {
-            error: error.message ?? "Jobs download failed",
-          },
-          {
-            status: 500,
-          }
-        );
-      }
+      // The response headers are already on the wire by this point, so the
+      // stream can only be ended — there's no status left to change.
     } finally {
       passThrough.end();
     }

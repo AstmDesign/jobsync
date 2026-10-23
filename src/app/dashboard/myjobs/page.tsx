@@ -3,6 +3,7 @@ import { Metadata } from "next";
 import {
   getJobSourceList,
   getJobSourcesInUse,
+  getMatchResumesInUse,
   getStatusList,
 } from "@/actions/job.actions";
 import JobsContainer from "@/components/myjobs/JobsContainer";
@@ -28,6 +29,7 @@ async function MyJobs() {
     tags,
     filterLocations,
     filterSources,
+    filterMatchResumes,
   ] = await Promise.all([
     getStatusList(),
     getAllCompanies(),
@@ -37,6 +39,7 @@ async function MyJobs() {
     getAllTags(),
     getJobLocationsInUse(),
     getJobSourcesInUse(),
+    getMatchResumesInUse(),
   ]);
   return (
     <div className="col-span-3">
@@ -49,6 +52,7 @@ async function MyJobs() {
         tags={tags ?? []}
         filterLocations={filterLocations ?? []}
         filterSources={filterSources ?? []}
+        filterMatchResumes={filterMatchResumes ?? []}
       />
     </div>
   );

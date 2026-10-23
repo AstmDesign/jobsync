@@ -21,6 +21,9 @@ const JOB_LIST_SELECT = {
   appliedDate: true,
   description: false,
   Resume: true,
+  // The CV the match score was produced against — surfaced as the "Matched CV"
+  // column. Separate from Resume above, which is the manually attached one.
+  MatchResume: { select: { id: true, title: true } },
   CoverLetter: true,
   matchScore: true,
   matchData: true,
@@ -41,6 +44,13 @@ const JOB_EXPORT_SELECT = {
   dueDate: true,
   applied: true,
   appliedDate: true,
+  jobUrl: true,
+  salaryRange: true,
+  // matchData is selected only so hideUnanalyzedScore can decide whether the
+  // score is a real AI match; it's stripped before the row leaves the iterator.
+  matchScore: true,
+  matchData: true,
+  MatchResume: { select: { id: true, title: true } },
 };
 
 const JOB_DETAILS_INCLUDE = {
@@ -75,7 +85,7 @@ const JOB_DETAILS_INCLUDE = {
   },
 };
 
-type JobsListFilters = {
+export type JobsListFilters = {
   filter?: string;
   search?: string;
   companyValue?: string;
@@ -83,6 +93,9 @@ type JobsListFilters = {
   titleValue?: string;
   locationValue?: string;
   sourceValue?: string;
+  // Resume id (not a slug/value) — the filter dropdown is populated from
+  // getMatchResumesInUse, which returns ids.
+  matchResumeId?: string;
 };
 
 const buildJobsWhereClause = (userId: string, filters: JobsListFilters) => {
@@ -94,6 +107,7 @@ const buildJobsWhereClause = (userId: string, filters: JobsListFilters) => {
     titleValue,
     locationValue,
     sourceValue,
+    matchResumeId,
   } = filters;
 
   const filterBy = filter
@@ -143,6 +157,10 @@ const buildJobsWhereClause = (userId: string, filters: JobsListFilters) => {
     whereClause.JobSource = { value: sourceValue };
   }
 
+  if (matchResumeId) {
+    whereClause.matchResumeId = matchResumeId;
+  }
+
   if (appliedOnly) {
     whereClause.applied = true;
   }
@@ -182,6 +200,7 @@ export const getJobsList = async (
   titleValue?: string,
   locationValue?: string,
   sourceValue?: string,
+  matchResumeId?: string,
 ): Promise<any | undefined> => {
   try {
     const user = await requireUser();
@@ -195,6 +214,7 @@ export const getJobsList = async (
       titleValue,
       locationValue,
       sourceValue,
+      matchResumeId,
     });
 
     const [data, total] = await Promise.all([
@@ -219,37 +239,42 @@ export const getJobsList = async (
   }
 };
 
-export async function* getJobsIterator(filter?: string, pageSize = 200) {
+// Streams every job matching the same where clause the jobs list builds, so
+// "export" always means "export exactly what I'm looking at". Previously this
+// built its own filter object against fields that don't exist on Job
+// (`status`/`type`), which would have thrown had a filter ever been passed.
+//
+// Paginates by cursor rather than skip/take: an export of thousands of rows is
+// slow enough that a concurrent insert or delete would shift a numeric offset
+// and silently duplicate or drop a row mid-stream.
+export async function* getJobsIterator(
+  filters: JobsListFilters = {},
+  pageSize = 200,
+) {
   const user = await requireUser();
-  let page = 1;
-  let fetchedCount = 0;
+  const whereClause = buildJobsWhereClause(user.id, filters);
+  let cursor: string | undefined;
 
   while (true) {
-    const skip = (page - 1) * pageSize;
-    const filterBy = filter
-      ? filter === Object.keys(JOB_TYPES)[1]
-        ? { status: filter }
-        : { type: filter }
-      : {};
-
     const chunk = await prisma.job.findMany({
-      where: {
-        userId: user.id,
-        ...filterBy,
-      },
+      where: whereClause,
       select: JOB_EXPORT_SELECT,
-      skip,
       take: pageSize,
-      orderBy: { createdAt: "desc" },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      // id is the cursor, so it has to be part of the ordering for the window
+      // to be stable when several jobs share a createdAt.
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     });
 
     if (!chunk.length) {
       break;
     }
 
-    yield chunk;
-    fetchedCount += chunk.length;
-    page++;
+    yield chunk.map(hideUnanalyzedScore);
+    if (chunk.length < pageSize) {
+      break;
+    }
+    cursor = chunk[chunk.length - 1].id;
   }
 }
 

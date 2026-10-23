@@ -14,6 +14,44 @@ import { isRetiredBoard } from "@/models/automation.model";
 import { APP_CONSTANTS } from "@/lib/constants";
 import { syncSchedulerState } from "@/lib/scheduler";
 import { formatError } from "./shared";
+import {
+  hasMinResumeSections,
+  buildInsufficientSectionsMessage,
+} from "@/lib/resumeSections";
+
+// The wizard disables resumes that lack enough content, but the dropdown is
+// not the security boundary: matching builds its prompt purely from
+// ResumeSections (convertResumeForMatch), so an automation pointed at a
+// section-less resume would score every job against an empty CV. Reject it
+// here too.
+async function validateAutomationResume(
+  resumeId: string,
+  userId: string,
+): Promise<{ success: false; message: string } | null> {
+  const resume = await db.resume.findFirst({
+    where: { id: resumeId, profile: { userId } },
+    select: { id: true, _count: { select: { ResumeSections: true } } },
+  });
+
+  if (!resume) {
+    return {
+      success: false,
+      message: "Resume not found or doesn't belong to you",
+    };
+  }
+
+  if (!hasMinResumeSections(resume._count?.ResumeSections)) {
+    return {
+      success: false,
+      message: buildInsufficientSectionsMessage(
+        "using this resume in an automation",
+        "summary, experience, education or skills",
+      ),
+    };
+  }
+
+  return null;
+}
 
 export async function createAutomation(input: CreateAutomationInput): Promise<{
   success: boolean;
@@ -46,19 +84,11 @@ export async function createAutomation(input: CreateAutomationInput): Promise<{
       };
     }
 
-    const resume = await db.resume.findFirst({
-      where: {
-        id: validated.resumeId,
-        profile: { userId: user.id },
-      },
-    });
-
-    if (!resume) {
-      return {
-        success: false,
-        message: "Resume not found or doesn't belong to you",
-      };
-    }
+    const resumeError = await validateAutomationResume(
+      validated.resumeId,
+      user.id,
+    );
+    if (resumeError) return resumeError;
 
     const nextRunAt = calculateNextRunAt(validated.scheduleHour);
 
@@ -125,18 +155,11 @@ export async function updateAutomation(
     }
 
     if (validated.resumeId) {
-      const resume = await db.resume.findFirst({
-        where: {
-          id: validated.resumeId,
-          profile: { userId: user.id },
-        },
-      });
-      if (!resume) {
-        return {
-          success: false,
-          message: "Resume not found or doesn't belong to you",
-        };
-      }
+      const resumeError = await validateAutomationResume(
+        validated.resumeId,
+        user.id,
+      );
+      if (resumeError) return resumeError;
     }
 
     const updateData: Record<string, unknown> = { ...validated };

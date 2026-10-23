@@ -12,14 +12,10 @@ import type { AutomationWithResume } from "@/models/automation.model";
 import { AutomationList } from "./AutomationList";
 import { AutomationWizard } from "./AutomationWizard";
 import Loading from "@/components/Loading";
-
-interface Resume {
-  id: string;
-  title: string;
-}
+import type { WizardResume } from "./automation-wizard/wizardConfig";
 
 interface AutomationContainerProps {
-  resumes: Resume[];
+  resumes: WizardResume[];
 }
 
 export function AutomationContainer({ resumes }: AutomationContainerProps) {

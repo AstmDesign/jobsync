@@ -57,7 +57,10 @@ describe("createAutomation schedule-hour uniqueness", () => {
     vi.clearAllMocks();
     (getCurrentUser as any).mockResolvedValue(mockUser);
     (prisma.automation.count as any).mockResolvedValue(1);
-    (prisma.resume.findFirst as any).mockResolvedValue({ id: RESUME_ID });
+    (prisma.resume.findFirst as any).mockResolvedValue({
+      id: RESUME_ID,
+      _count: { ResumeSections: 2 },
+    });
     (prisma.automation.create as any).mockResolvedValue({ id: "auto-1" });
   });
 
@@ -97,7 +100,10 @@ describe("updateAutomation schedule-hour uniqueness", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (getCurrentUser as any).mockResolvedValue(mockUser);
-    (prisma.resume.findFirst as any).mockResolvedValue({ id: RESUME_ID });
+    (prisma.resume.findFirst as any).mockResolvedValue({
+      id: RESUME_ID,
+      _count: { ResumeSections: 2 },
+    });
     (prisma.automation.update as any).mockResolvedValue({ id: AUTO_ID });
   });
 
@@ -137,5 +143,75 @@ describe("updateAutomation schedule-hour uniqueness", () => {
 
     expect(result.success).toBe(true);
     expect(prisma.automation.update).toHaveBeenCalled();
+  });
+});
+
+// The wizard now lists every resume and disables the unusable ones, so the
+// server has to be the one that actually refuses a section-less resume —
+// matching builds its prompt from ResumeSections alone.
+describe("automation resume content guard", () => {
+  const mockUser = { id: "user-1" };
+  const AUTO_ID = "auto-1";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (getCurrentUser as any).mockResolvedValue(mockUser);
+    (prisma.automation.count as any).mockResolvedValue(1);
+    (prisma.automation.create as any).mockResolvedValue({ id: "auto-1" });
+    (prisma.automation.update as any).mockResolvedValue({ id: AUTO_ID });
+  });
+
+  it("rejects a create when the resume has too few sections", async () => {
+    (prisma.automation.findFirst as any).mockResolvedValue(null);
+    (prisma.resume.findFirst as any).mockResolvedValue({
+      id: RESUME_ID,
+      _count: { ResumeSections: 1 },
+    });
+
+    const result = await createAutomation(baseInput());
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/at least 2 sections/i);
+    expect(prisma.automation.create).not.toHaveBeenCalled();
+  });
+
+  it("still rejects a create when the resume isn't the user's", async () => {
+    (prisma.automation.findFirst as any).mockResolvedValue(null);
+    (prisma.resume.findFirst as any).mockResolvedValue(null);
+
+    const result = await createAutomation(baseInput());
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/doesn't belong to you/i);
+    expect(prisma.automation.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an update that points at a section-less resume", async () => {
+    (prisma.automation.findFirst as any)
+      .mockResolvedValueOnce({ id: AUTO_ID, scheduleHour: 8 })
+      .mockResolvedValueOnce(null);
+    (prisma.resume.findFirst as any).mockResolvedValue({
+      id: RESUME_ID,
+      _count: { ResumeSections: 0 },
+    });
+
+    const result = await updateAutomation(AUTO_ID, baseInput());
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/at least 2 sections/i);
+    expect(prisma.automation.update).not.toHaveBeenCalled();
+  });
+
+  it("allows a resume that meets the threshold", async () => {
+    (prisma.automation.findFirst as any).mockResolvedValue(null);
+    (prisma.resume.findFirst as any).mockResolvedValue({
+      id: RESUME_ID,
+      _count: { ResumeSections: 2 },
+    });
+
+    const result = await createAutomation(baseInput());
+
+    expect(result.success).toBe(true);
+    expect(prisma.automation.create).toHaveBeenCalled();
   });
 });

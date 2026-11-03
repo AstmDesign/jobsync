@@ -1,17 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { format } from "date-fns";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,28 +19,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toastSuccess, toastError } from "@/lib/toast";
-import {
-  MoreVertical,
-  Pause,
-  Play,
-  Pencil,
-  Trash2,
-  Clock,
-  FileText,
-  AlertTriangle,
-  Zap,
-  Loader2,
-  PlayCircle,
-} from "lucide-react";
+import { ChevronRight, FileText, Zap } from "lucide-react";
 import type { AutomationWithResume } from "@/models/automation.model";
-import { isRetiredBoard } from "@/models/automation.model";
 import {
   deleteAutomation,
   pauseAutomation,
   resumeAutomation,
 } from "@/actions/automation.actions";
-import { APP_CONSTANTS } from "@/lib/constants";
-import Link from "next/link";
+import { AutomationRow } from "./AutomationRow";
+import { groupAutomationsByResume } from "./groupAutomationsByResume";
 
 interface AutomationListProps {
   automations: AutomationWithResume[];
@@ -60,6 +43,36 @@ export function AutomationList({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  // Only the keys the user has opened. Starting from an empty set is what
+  // makes every group collapsed by default, and it survives onRefresh because
+  // this component isn't remounted when the parent reloads the list.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+
+  const groups = useMemo(
+    () => groupAutomationsByResume(automations),
+    [automations],
+  );
+
+  // Grouping only earns its keep with more than one resume. With exactly one,
+  // an all-collapsed default would show a single header and nothing else, so
+  // that group opens itself — once, and never again after the user has
+  // touched a header.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || groups.length !== 1) return;
+    autoOpened.current = true;
+    setOpenGroups(new Set([groups[0].key]));
+  }, [groups]);
+
+  const toggleGroup = (key: string) => {
+    autoOpened.current = true;
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const handlePause = async (id: string) => {
     setLoadingAction(id);
@@ -142,224 +155,54 @@ export function AutomationList({
 
   return (
     <>
-      <div className="space-y-4">
-        {automations.map((automation) => {
-          const isLoading = loadingAction === automation.id;
-          const resumeMissing = !automation.resume;
-
-          const retired = isRetiredBoard(automation.jobBoard);
-          const ats = (() => {
-            try {
-              return JSON.parse(automation.sourceConfig ?? "{}")[
-                automation.jobBoard
-              ];
-            } catch {
-              return null;
-            }
-          })();
-          const atsCompanies: { name: string; token: string }[] =
-            ats?.companies ?? [];
-          const atsTitles: string[] = ats?.targetTitles ?? [];
-          const atsLocations: string[] = ats?.locations ?? [];
-          const atsKeywords: string[] = ats?.keywords ?? [];
-          const atsTopK: number = ats?.topK ?? APP_CONSTANTS.MAX_JOBS_PER_RUN;
-          const atsSaveUnanalyzed: boolean = ats?.saveUnanalyzed !== false;
-
+      <div className="space-y-3">
+        {groups.map((group) => {
+          const isOpen = openGroups.has(group.key);
           return (
-            <div
-              key={automation.id}
-              className="flex items-start justify-between p-4 rounded-lg border bg-card"
+            <Collapsible
+              key={group.key}
+              open={isOpen}
+              onOpenChange={() => toggleGroup(group.key)}
+              className="rounded-lg border bg-muted/30"
             >
-              <div className="flex-1 min-w-0 space-y-2">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Link
-                    href={`/dashboard/automations/${automation.id}`}
-                    className="font-semibold hover:underline"
-                  >
-                    {automation.name}
-                  </Link>
-                  <Badge variant="outline" className="capitalize">
-                    {automation.jobBoard}
-                  </Badge>
-                  {retired ? (
-                    <Badge variant="destructive">Retired</Badge>
-                  ) : (
-                    <Badge
-                      variant={
-                        automation.status === "active" ? "default" : "secondary"
-                      }
-                    >
-                      {automation.status}
-                    </Badge>
-                  )}
-                </div>
-
-                {retired && (
-                  <div className="flex items-center gap-2 text-amber-600 text-sm">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span>
-                      This job board was removed and no longer runs. Delete this
-                      automation.
-                    </span>
-                  </div>
+              <CollapsibleTrigger
+                className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/60 rounded-lg transition-colors"
+                data-testid={`automation-group-${group.key}`}
+              >
+                <ChevronRight
+                  className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+                    isOpen ? "rotate-90" : ""
+                  }`}
+                />
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="font-semibold truncate">{group.title}</span>
+                <Badge variant="secondary" className="shrink-0">
+                  {group.automations.length}
+                </Badge>
+                {/* Collapsed is the default, so the header has to say enough
+                    that you don't need to open every group to find what's
+                    running. */}
+                {group.activeCount > 0 && (
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {group.activeCount} active
+                  </span>
                 )}
-
-                {!retired && resumeMissing && (
-                  <div className="flex items-center gap-2 text-amber-600 text-sm">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>Resume missing - select a new one</span>
-                  </div>
-                )}
-
-                {!retired && (
-                  <div className="space-y-1.5 text-sm text-muted-foreground">
-                    <div className="flex flex-wrap items-center gap-1">
-                      {atsCompanies.slice(0, 3).map((c) => (
-                        <Badge key={c.token} variant="secondary">
-                          {c.name}
-                        </Badge>
-                      ))}
-                      {atsCompanies.length > 3 && (
-                        <Badge variant="secondary">
-                          +{atsCompanies.length - 3} more
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-x-6 gap-y-1">
-                      <span>
-                        <span className="font-medium text-foreground">
-                          Titles:
-                        </span>{" "}
-                        {atsTitles.length ? atsTitles.join(", ") : "Not set"}
-                      </span>
-                      <span>
-                        <span className="font-medium text-foreground">
-                          Keywords:
-                        </span>{" "}
-                        {atsKeywords.length ? atsKeywords.join(", ") : "Any"}
-                      </span>
-                      <span>
-                        <span className="font-medium text-foreground">
-                          Location:
-                        </span>{" "}
-                        {atsLocations.length
-                          ? atsLocations.join(", ")
-                          : "Any location"}
-                      </span>
-                      <span>
-                        <span className="font-medium text-foreground">
-                          Analyzed/run:
-                        </span>{" "}
-                        {atsTopK}
-                      </span>
-                      <span>
-                        <span className="font-medium text-foreground">
-                          Extra listings:
-                        </span>{" "}
-                        {atsSaveUnanalyzed ? "on" : "off"}
-                      </span>
-                      {automation.resume && (
-                        <span>
-                          <span className="font-medium text-foreground">
-                            Resume:
-                          </span>{" "}
-                          {automation.resume.title}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    <span>
-                      {automation.scheduleHour.toString().padStart(2, "0")}:00
-                      daily
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <FileText className="h-4 w-4" />
-                    <span>{automation.matchThreshold}% threshold</span>
-                  </div>
-                  {!retired &&
-                    automation.nextRunAt &&
-                    automation.status === "active" && (
-                      <span className="text-xs">
-                        Next:{" "}
-                        {format(
-                          new Date(automation.nextRunAt),
-                          "MMM d, h:mm a",
-                        )}
-                      </span>
-                    )}
-                  {automation.lastRunAt && (
-                    <span className="text-xs">
-                      Last:{" "}
-                      {format(new Date(automation.lastRunAt), "MMM d, h:mm a")}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" disabled={isLoading}>
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {!retired &&
-                    (automation.status === "active" ? (
-                      <DropdownMenuItem
-                        onClick={() => handlePause(automation.id)}
-                      >
-                        <Pause className="h-4 w-4 mr-2" />
-                        Pause
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem
-                        onClick={() => handleResume(automation.id)}
-                        disabled={resumeMissing}
-                      >
-                        <Play className="h-4 w-4 mr-2" />
-                        Resume
-                      </DropdownMenuItem>
-                    ))}
-                  {!retired && (
-                    <DropdownMenuItem
-                      onClick={() => handleRunNow(automation.id)}
-                      disabled={
-                        resumeMissing || automation.status === "paused"
-                      }
-                    >
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <PlayCircle className="h-4 w-4 mr-2" />
-                      )}
-                      Run Now
-                    </DropdownMenuItem>
-                  )}
-                  {!retired && (
-                    <>
-                      <DropdownMenuItem onClick={() => onEdit(automation)}>
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => setDeleteId(automation.id)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 p-3 pt-0">
+                {group.automations.map((automation) => (
+                  <AutomationRow
+                    key={automation.id}
+                    automation={automation}
+                    isLoading={loadingAction === automation.id}
+                    onPause={handlePause}
+                    onResume={handleResume}
+                    onRunNow={handleRunNow}
+                    onEdit={onEdit}
+                    onRequestDelete={setDeleteId}
+                  />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           );
         })}
       </div>

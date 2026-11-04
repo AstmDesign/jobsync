@@ -89,6 +89,12 @@ const parseFilters = (body: unknown): JobsListFilters => {
     locationValue: asString(raw.locationValue),
     sourceValue: asString(raw.sourceValue),
     matchResumeId: asString(raw.matchResumeId),
+    automationId: asString(raw.automationId),
+    // Left as strings: buildJobsWhereClause parses them and drops anything
+    // that isn't a real date, so a junk boundary degrades to "no date filter"
+    // rather than an opaque Prisma error.
+    createdFrom: asString(raw.createdFrom),
+    createdTo: asString(raw.createdTo),
     appliedOnly: raw.appliedOnly === true,
   };
 };

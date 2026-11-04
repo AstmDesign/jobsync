@@ -1,8 +1,10 @@
 import { Metadata } from "next";
 
 import {
+  getAutomationsInUse,
   getJobSourceList,
   getJobSourcesInUse,
+  getJobYearsInUse,
   getMatchResumesInUse,
   getStatusList,
 } from "@/actions/job.actions";
@@ -30,6 +32,8 @@ async function MyJobs() {
     filterLocations,
     filterSources,
     filterMatchResumes,
+    filterYears,
+    filterAutomations,
   ] = await Promise.all([
     getStatusList(),
     getAllCompanies(),
@@ -40,6 +44,8 @@ async function MyJobs() {
     getJobLocationsInUse(),
     getJobSourcesInUse(),
     getMatchResumesInUse(),
+    getJobYearsInUse(),
+    getAutomationsInUse(),
   ]);
   return (
     <div className="col-span-3">
@@ -53,6 +59,8 @@ async function MyJobs() {
         filterLocations={filterLocations ?? []}
         filterSources={filterSources ?? []}
         filterMatchResumes={filterMatchResumes ?? []}
+        filterYears={filterYears ?? []}
+        filterAutomations={filterAutomations ?? []}
       />
     </div>
   );

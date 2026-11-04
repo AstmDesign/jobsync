@@ -7,6 +7,7 @@ import {
   MapPin,
   RefreshCw,
   X,
+  Zap,
 } from "lucide-react";
 import { CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
@@ -34,7 +35,12 @@ import {
   JobTitle,
   Tag,
 } from "@/models/job.model";
-import type { MatchResumeOption } from "./useJobFilters";
+import type {
+  AutomationOption,
+  MatchResumeOption,
+} from "./useJobFilters";
+import { JobsDateFilter } from "./JobsDateFilter";
+import type { DateFilter } from "./dateFilter";
 
 // Presentational: the Jobs card header — title/count, active filter chips,
 // view toggle, search, filter select, export and Add Job.
@@ -60,6 +66,16 @@ export function JobsToolbar({
   onSourceFilterChange,
   matchResumeFilter,
   onMatchResumeFilterChange,
+  automationLabel,
+  onClearAutomationFilter,
+  automationFilter,
+  onAutomationFilterChange,
+  filterAutomations = [],
+  dateFilter = {},
+  dateLabel,
+  onDateFilterChange,
+  onClearDateFilter,
+  filterYears = [],
   onReload,
   searchTerm,
   onSearchTermChange,
@@ -102,6 +118,16 @@ export function JobsToolbar({
   onSourceFilterChange: (value: string) => void;
   matchResumeFilter?: string | null;
   onMatchResumeFilterChange: (value: string) => void;
+  automationLabel?: string | null;
+  onClearAutomationFilter?: () => void;
+  automationFilter?: string | null;
+  onAutomationFilterChange?: (value: string) => void;
+  filterAutomations?: AutomationOption[];
+  dateFilter?: DateFilter;
+  dateLabel?: string | null;
+  onDateFilterChange?: (patch: DateFilter) => void;
+  onClearDateFilter?: () => void;
+  filterYears?: number[];
   onReload: () => void;
   searchTerm: string;
   onSearchTermChange: (value: string) => void;
@@ -121,6 +147,23 @@ export function JobsToolbar({
   resetEditJob: () => void;
   addJobInitialOpen: boolean;
 }) {
+  // Bucketed in arrival order — getAutomationsInUse already sorts by resume
+  // title then automation name, so insertion order is the display order and no
+  // second sort is needed here.
+  const automationGroups = (() => {
+    const groups = new Map<string, { title: string; items: AutomationOption[] }>();
+    for (const automation of filterAutomations) {
+      const key = automation.resume?.id ?? "__no_resume__";
+      let group = groups.get(key);
+      if (!group) {
+        group = { title: automation.resume?.title ?? "No resume", items: [] };
+        groups.set(key, group);
+      }
+      group.items.push(automation);
+    }
+    return [...groups.entries()].map(([key, group]) => ({ key, ...group }));
+  })();
+
   return (
     <CardHeader className="flex-row flex-wrap justify-between items-center gap-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -173,6 +216,24 @@ export function JobsToolbar({
             className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
           >
             {matchResumeLabel}
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {automationLabel && (
+          <button
+            onClick={onClearAutomationFilter}
+            className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
+          >
+            {automationLabel}
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {dateLabel && (
+          <button
+            onClick={onClearDateFilter}
+            className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
+          >
+            {dateLabel}
             <X className="h-3.5 w-3.5" />
           </button>
         )}
@@ -291,6 +352,43 @@ export function JobsToolbar({
               </SelectGroup>
             </SelectContent>
           </Select>
+        )}
+        {automationGroups.length > 0 && onAutomationFilterChange && (
+          <Select
+            value={automationFilter ?? undefined}
+            onValueChange={onAutomationFilterChange}
+          >
+            <SelectTrigger
+              className="w-[160px] h-8"
+              data-testid="job-automation-filter-select"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              <SelectValue placeholder="Automation" />
+            </SelectTrigger>
+            <SelectContent>
+              {/* One group per CV: the same job title is often automated
+                  against several resumes, so the bare automation name isn't
+                  enough to tell them apart. */}
+              {automationGroups.map((group) => (
+                <SelectGroup key={group.key}>
+                  <SelectLabel>{group.title}</SelectLabel>
+                  <SelectSeparator />
+                  {group.items.map((automation) => (
+                    <SelectItem key={automation.id} value={automation.id}>
+                      {automation.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {onDateFilterChange && (
+          <JobsDateFilter
+            years={filterYears}
+            value={dateFilter}
+            onChange={onDateFilterChange}
+          />
         )}
         <Button
           size="sm"

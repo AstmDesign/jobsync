@@ -17,6 +17,8 @@ export {
   getJobSourceList,
   getJobSourcesInUse,
   getMatchResumesInUse,
+  getAutomationsInUse,
+  getJobYearsInUse,
   createLocation,
   createJobSource,
 } from "./job/references";

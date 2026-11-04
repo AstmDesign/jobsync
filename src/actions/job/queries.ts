@@ -96,6 +96,24 @@ export type JobsListFilters = {
   // Resume id (not a slug/value) — the filter dropdown is populated from
   // getMatchResumesInUse, which returns ids.
   matchResumeId?: string;
+  // Automation id. Jobs added by hand have no automation, so this filter
+  // implicitly narrows to discovered jobs.
+  automationId?: string;
+  // Half-open createdAt window as ISO strings: gte createdFrom, lt createdTo.
+  // The boundaries are computed in the browser from the year/month/day selects
+  // so "4 November" means the user's local day, not a UTC one — the server
+  // has no way to know the viewer's offset.
+  createdFrom?: string;
+  createdTo?: string;
+};
+
+// Half-open boundary → Prisma operator. An unparseable value is dropped rather
+// than forwarded, since `new Date("x")` is an Invalid Date and Prisma fails on
+// it with an opaque error.
+const parseBoundary = (op: "gte" | "lt", value?: string) => {
+  if (!value) return {};
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? {} : { [op]: date };
 };
 
 const buildJobsWhereClause = (userId: string, filters: JobsListFilters) => {
@@ -108,6 +126,9 @@ const buildJobsWhereClause = (userId: string, filters: JobsListFilters) => {
     locationValue,
     sourceValue,
     matchResumeId,
+    automationId,
+    createdFrom,
+    createdTo,
   } = filters;
 
   const filterBy = filter
@@ -161,6 +182,22 @@ const buildJobsWhereClause = (userId: string, filters: JobsListFilters) => {
     whereClause.matchResumeId = matchResumeId;
   }
 
+  // Scalar equality on the denormalized FK, covered by the
+  // [userId, automationId] index.
+  if (automationId) {
+    whereClause.automationId = automationId;
+  }
+
+  // A malformed boundary is dropped rather than passed on: `new Date("x")` is
+  // an Invalid Date, which Prisma rejects at query time with an opaque error.
+  const createdRange = {
+    ...parseBoundary("gte", createdFrom),
+    ...parseBoundary("lt", createdTo),
+  };
+  if (Object.keys(createdRange).length > 0) {
+    whereClause.createdAt = createdRange;
+  }
+
   if (appliedOnly) {
     whereClause.applied = true;
   }
@@ -201,6 +238,13 @@ export const getJobsList = async (
   locationValue?: string,
   sourceValue?: string,
   matchResumeId?: string,
+  // Everything added after the tenth argument goes in here. Ten positional
+  // params is already past readable, and a named bag means the next filter is
+  // one key rather than another argument every caller has to pad past.
+  extra?: Pick<
+    JobsListFilters,
+    "automationId" | "createdFrom" | "createdTo"
+  >,
 ): Promise<any | undefined> => {
   try {
     const user = await requireUser();
@@ -215,6 +259,7 @@ export const getJobsList = async (
       locationValue,
       sourceValue,
       matchResumeId,
+      ...extra,
     });
 
     const [data, total] = await Promise.all([

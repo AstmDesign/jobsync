@@ -1235,6 +1235,338 @@ describe("JobsContainer Search Functionality", () => {
 
       expect(exportBody().filter).toBe("interview");
     });
+
+    it("posts the Matched CV and the created window together", async () => {
+      // The whole point of the feature: narrow by CV *and* a single day, then
+      // export, and get only those rows.
+      (useSearchParams as any).mockReturnValue(
+        new URLSearchParams("matchResume=resume-2&year=2026&month=11&day=4"),
+      );
+      (getJobsList as any).mockResolvedValue({
+        success: true,
+        data: mockJobs,
+        total: 2,
+      });
+
+      render(
+        <JobsContainer
+          statuses={mockStatuses}
+          companies={mockCompanies}
+          titles={mockTitles}
+          locations={mockLocations}
+          sources={mockSources}
+          tags={[]}
+          filterMatchResumes={mockMatchResumes}
+          filterYears={[2026]}
+        />,
+      );
+      await waitFor(() => expect(getJobsList).toHaveBeenCalled());
+
+      await act(async () => {
+        await user.click(screen.getByRole("button", { name: /export/i }));
+      });
+
+      const body = exportBody();
+      expect(body.matchResumeId).toBe("resume-2");
+      // Local-time boundaries, so the comparison is built the same way rather
+      // than hard-coded to one timezone.
+      expect(body.createdFrom).toBe(new Date(2026, 10, 4).toISOString());
+      expect(body.createdTo).toBe(new Date(2026, 10, 5).toISOString());
+    });
+
+    it("posts the automation alongside the CV", async () => {
+      (useSearchParams as any).mockReturnValue(
+        new URLSearchParams("matchResume=resume-1&automation=auto-1"),
+      );
+      (getJobsList as any).mockResolvedValue({
+        success: true,
+        data: mockJobs,
+        total: 2,
+      });
+
+      render(
+        <JobsContainer
+          statuses={mockStatuses}
+          companies={mockCompanies}
+          titles={mockTitles}
+          locations={mockLocations}
+          sources={mockSources}
+          tags={[]}
+          filterMatchResumes={mockMatchResumes}
+          filterAutomations={[
+            {
+              id: "auto-1",
+              name: "Senior Ruby",
+              resume: { id: "resume-1", title: "Backend CV" },
+            },
+          ]}
+        />,
+      );
+      await waitFor(() => expect(getJobsList).toHaveBeenCalled());
+
+      await act(async () => {
+        await user.click(screen.getByRole("button", { name: /export/i }));
+      });
+
+      const body = exportBody();
+      expect(body.matchResumeId).toBe("resume-1");
+      expect(body.automationId).toBe("auto-1");
+    });
+  });
+
+  describe("created date filter", () => {
+    const mockMatchResumes = [
+      { id: "resume-1", title: "Backend CV" },
+      { id: "resume-2", title: "QA CV" },
+    ];
+
+    const renderWithYears = (years = [2026, 2025]) =>
+      render(
+        <JobsContainer
+          statuses={mockStatuses}
+          companies={mockCompanies}
+          titles={mockTitles}
+          locations={mockLocations}
+          sources={mockSources}
+          tags={[]}
+          filterMatchResumes={mockMatchResumes}
+          filterYears={years}
+        />,
+      );
+
+    beforeEach(() => {
+      (getJobsList as any).mockResolvedValue({
+        success: true,
+        data: mockJobs,
+        total: 2,
+      });
+    });
+
+    it("hides the selects when the user has no jobs to date-filter", async () => {
+      renderWithYears([]);
+      await waitFor(() => expect(getJobsList).toHaveBeenCalled());
+
+      expect(
+        screen.queryByTestId("job-year-filter-select"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("passes a whole-year window as the 11th getJobsList argument", async () => {
+      (useSearchParams as any).mockReturnValue(new URLSearchParams("year=2026"));
+
+      renderWithYears();
+
+      await waitFor(() => {
+        expect(getJobsList).toHaveBeenCalledWith(
+          1, 25, undefined, undefined, undefined, undefined, undefined,
+          undefined, undefined, undefined,
+          {
+            createdFrom: new Date(2026, 0, 1).toISOString(),
+            createdTo: new Date(2027, 0, 1).toISOString(),
+          },
+        );
+      });
+    });
+
+    it("narrows to a single day when all three params are set", async () => {
+      (useSearchParams as any).mockReturnValue(
+        new URLSearchParams("year=2026&month=11&day=4"),
+      );
+
+      renderWithYears();
+
+      await waitFor(() => {
+        const range = (getJobsList as any).mock.calls[0][10];
+        expect(range).toEqual({
+          createdFrom: new Date(2026, 10, 4).toISOString(),
+          createdTo: new Date(2026, 10, 5).toISOString(),
+        });
+      });
+    });
+
+    it("leaves the 11th argument off entirely when no date is picked", async () => {
+      renderWithYears();
+
+      // Arity matters: an explicit trailing undefined would break every other
+      // toHaveBeenCalledWith in this file.
+      await waitFor(() => {
+        expect((getJobsList as any).mock.calls[0]).toHaveLength(10);
+      });
+    });
+
+    it("keeps the Matched CV param when a year is chosen", async () => {
+      (useSearchParams as any).mockReturnValue(
+        new URLSearchParams("matchResume=resume-2"),
+      );
+
+      renderWithYears();
+      const trigger = await screen.findByTestId("job-year-filter-select");
+      await act(async () => {
+        await user.click(trigger);
+      });
+      await act(async () => {
+        await user.click(screen.getByRole("option", { name: "2026" }));
+      });
+
+      // Merge, not replace — the old behaviour would have dropped matchResume
+      // here and exported the wrong rows.
+      expect(mockRouter.push).toHaveBeenCalledWith(
+        "/dashboard/myjobs?matchResume=resume-2&year=2026",
+      );
+    });
+
+    it("disables month and day until the level above is chosen", async () => {
+      renderWithYears();
+
+      const month = await screen.findByTestId("job-month-filter-select");
+      expect(month).toBeDisabled();
+      expect(screen.getByTestId("job-day-filter-select")).toBeDisabled();
+    });
+
+    it("enables the month select once a year is in the URL", async () => {
+      (useSearchParams as any).mockReturnValue(new URLSearchParams("year=2026"));
+
+      renderWithYears();
+
+      const month = await screen.findByTestId("job-month-filter-select");
+      expect(month).not.toBeDisabled();
+      // Day still needs a month.
+      expect(screen.getByTestId("job-day-filter-select")).toBeDisabled();
+    });
+
+    it("shows a chip for the active date and clears all three params on click", async () => {
+      (useSearchParams as any).mockReturnValue(
+        new URLSearchParams("year=2026&month=11&day=4"),
+      );
+
+      renderWithYears();
+
+      const chip = await screen.findByRole("button", {
+        name: /4 November 2026/,
+      });
+      await act(async () => {
+        await user.click(chip);
+      });
+
+      expect(mockRouter.push).toHaveBeenCalledWith("/dashboard/myjobs");
+    });
+  });
+
+  describe("automation filter", () => {
+    const mockMatchResumes = [
+      { id: "resume-1", title: "Backend CV" },
+      { id: "resume-2", title: "QA CV" },
+    ];
+
+    // Two automations on one CV and one on another — the case that makes the
+    // grouping necessary, since "Senior Ruby" alone wouldn't say which CV.
+    const mockAutomations = [
+      {
+        id: "auto-1",
+        name: "Senior Ruby",
+        resume: { id: "resume-1", title: "Backend CV" },
+      },
+      {
+        id: "auto-2",
+        name: "Staff Engineer",
+        resume: { id: "resume-1", title: "Backend CV" },
+      },
+      {
+        id: "auto-3",
+        name: "QA Lead",
+        resume: { id: "resume-2", title: "QA CV" },
+      },
+    ];
+
+    const renderWithAutomations = (automations = mockAutomations) =>
+      render(
+        <JobsContainer
+          statuses={mockStatuses}
+          companies={mockCompanies}
+          titles={mockTitles}
+          locations={mockLocations}
+          sources={mockSources}
+          tags={[]}
+          filterMatchResumes={mockMatchResumes}
+          filterAutomations={automations}
+        />,
+      );
+
+    beforeEach(() => {
+      (getJobsList as any).mockResolvedValue({
+        success: true,
+        data: mockJobs,
+        total: 2,
+      });
+    });
+
+    it("hides the dropdown when no automation has discovered a job", async () => {
+      renderWithAutomations([]);
+      await waitFor(() => expect(getJobsList).toHaveBeenCalled());
+
+      expect(
+        screen.queryByTestId("job-automation-filter-select"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("groups the options by CV and keeps other params when one is chosen", async () => {
+      // Company rather than Matched CV for the "other param": a CV filter would
+      // put "QA CV" on a chip as well as on a group label, and getByText below
+      // has to match exactly one node.
+      (useSearchParams as any).mockReturnValue(
+        new URLSearchParams("company=amazon"),
+      );
+
+      renderWithAutomations();
+      const trigger = await screen.findByTestId("job-automation-filter-select");
+      await act(async () => {
+        await user.click(trigger);
+      });
+
+      // One label per CV, not one per automation.
+      expect(screen.getByText("Backend CV")).toBeInTheDocument();
+      expect(screen.getByText("QA CV")).toBeInTheDocument();
+
+      await act(async () => {
+        await user.click(screen.getByRole("option", { name: "Staff Engineer" }));
+      });
+
+      expect(mockRouter.push).toHaveBeenCalledWith(
+        "/dashboard/myjobs?company=amazon&automation=auto-2",
+      );
+    });
+
+    it("passes the automation id in the extras bag", async () => {
+      (useSearchParams as any).mockReturnValue(
+        new URLSearchParams("automation=auto-3"),
+      );
+
+      renderWithAutomations();
+
+      await waitFor(() => {
+        expect((getJobsList as any).mock.calls[0][10]).toEqual({
+          automationId: "auto-3",
+        });
+      });
+    });
+
+    it("shows a CV-prefixed chip that clears the param on click", async () => {
+      (useSearchParams as any).mockReturnValue(
+        new URLSearchParams("automation=auto-1"),
+      );
+
+      renderWithAutomations();
+
+      const chip = await screen.findByRole("button", {
+        name: /Backend CV: Senior Ruby/,
+      });
+      await act(async () => {
+        await user.click(chip);
+      });
+
+      expect(mockRouter.push).toHaveBeenCalledWith("/dashboard/myjobs");
+    });
+
   });
 
   describe("add-job query param", () => {

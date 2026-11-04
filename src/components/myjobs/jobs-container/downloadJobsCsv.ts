@@ -12,7 +12,14 @@ export type JobsExportFilters = {
   locationValue?: string;
   sourceValue?: string;
   matchResumeId?: string;
+  // Automation id. Hand-added jobs carry no automation, so this also narrows
+  // the export to discovered jobs.
+  automationId?: string;
   appliedOnly?: boolean;
+  // Half-open ISO window on createdAt, already resolved to local-time
+  // boundaries by the browser.
+  createdFrom?: string;
+  createdTo?: string;
 };
 
 // "none" is the list's own sentinel for "no status filter" and is not a real
@@ -29,8 +36,16 @@ function buildFilterSlug(filters: JobsExportFilters): string {
     // The resume id would be noise in a filename; the dropdown label isn't
     // available here, so a generic marker records that the CV filter was on.
     filters.matchResumeId ? "matched-cv" : null,
+    // Same reasoning as matched-cv: the id would be noise, so just record that
+    // the automation filter was on.
+    filters.automationId ? "automation" : null,
     filters.appliedOnly ? "applied" : null,
     filters.search ? "search" : null,
+    // The start of the window, formatted locally so it reads as the day the
+    // user picked rather than its UTC neighbour.
+    filters.createdFrom
+      ? `from-${format(new Date(filters.createdFrom), "yyyy-MM-dd")}`
+      : null,
   ].filter(Boolean) as string[];
 
   if (!parts.length) return "";

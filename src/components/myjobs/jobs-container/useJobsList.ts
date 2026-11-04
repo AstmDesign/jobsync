@@ -19,6 +19,9 @@ export function useJobsList({
   locationFilter,
   sourceFilter,
   matchResumeFilter = null,
+  automationFilter = null,
+  createdFrom,
+  createdTo,
 }: {
   companyFilter: string | null;
   appliedFilter: boolean;
@@ -26,6 +29,12 @@ export function useJobsList({
   locationFilter: string | null;
   sourceFilter: string | null;
   matchResumeFilter?: string | null;
+  automationFilter?: string | null;
+  // ISO boundaries of the half-open Created window, passed as two primitives
+  // rather than an object so they can go straight into the dep array below
+  // without a fresh identity on every render.
+  createdFrom?: string;
+  createdTo?: string;
 }) {
   const { jobWrites } = useAgentChat();
   const [jobs, setJobs] = useState<JobResponse[]>([]);
@@ -60,6 +69,19 @@ export function useJobsList({
     async (page: number, filter?: string, search?: string) => {
       if (page === 1) setInitialLoading(true);
       else setLoadingMore(true);
+      // Appended only when one of these filters is actually set. getJobsList
+      // takes positional arguments, and passing an explicit `undefined` would
+      // change the call arity that every existing test asserts on.
+      const extraArgs: [] | [Record<string, string | undefined>] =
+        automationFilter || createdFrom || createdTo
+          ? [
+              {
+                ...(automationFilter ? { automationId: automationFilter } : {}),
+                ...(createdFrom ? { createdFrom } : {}),
+                ...(createdTo ? { createdTo } : {}),
+              },
+            ]
+          : [];
       const { success, data, total, message } = await getJobsList(
         page,
         jobsPerPage,
@@ -71,6 +93,7 @@ export function useJobsList({
         locationFilter || undefined,
         sourceFilter || undefined,
         matchResumeFilter || undefined,
+        ...extraArgs,
       );
       if (success && data) {
         setJobs((prev) => (page === 1 ? data : [...prev, ...data]));
@@ -90,6 +113,9 @@ export function useJobsList({
       locationFilter,
       sourceFilter,
       matchResumeFilter,
+      automationFilter,
+      createdFrom,
+      createdTo,
     ],
   );
 

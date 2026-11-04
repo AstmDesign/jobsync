@@ -24,6 +24,7 @@ import MyJobsGrid from "./MyJobsGrid";
 import { NoteDialog } from "./NoteDialog";
 import {
   useJobFilters,
+  type AutomationOption,
   type MatchResumeOption,
 } from "./jobs-container/useJobFilters";
 import { useJobsList } from "./jobs-container/useJobsList";
@@ -46,6 +47,12 @@ type MyJobsProps = {
   // Resumes recorded as the match CV on at least one job — see
   // getMatchResumesInUse. Keyed by id, since Resume has no canonical value.
   filterMatchResumes?: MatchResumeOption[];
+  // Years the user has jobs in — see getJobYearsInUse. Empty means the Created
+  // date filter has nothing to offer and isn't rendered.
+  filterYears?: number[];
+  // Automations that have discovered at least one job — see
+  // getAutomationsInUse. Carries the resume so the dropdown groups by CV.
+  filterAutomations?: AutomationOption[];
 };
 
 function JobsContainer({
@@ -58,6 +65,8 @@ function JobsContainer({
   filterLocations = [],
   filterSources = [],
   filterMatchResumes = [],
+  filterYears = [],
+  filterAutomations = [],
 }: MyJobsProps) {
   const router = useRouter();
   const [editJob, setEditJob] = useState(null);
@@ -71,7 +80,16 @@ function JobsContainer({
     locationFilter,
     sourceFilter,
     matchResumeFilter,
+    automationFilter,
+    automationLabel,
+    clearAutomationFilter,
+    selectAutomationFilter,
     appliedFilter,
+    dateFilter,
+    dateLabel,
+    createdRange,
+    selectDateFilter,
+    clearDateFilter,
     companyLabel,
     titleLabel,
     locationLabel,
@@ -91,6 +109,7 @@ function JobsContainer({
     locations,
     sources,
     matchResumes: filterMatchResumes,
+    automations: filterAutomations,
   });
 
   const {
@@ -114,6 +133,9 @@ function JobsContainer({
     locationFilter,
     sourceFilter,
     matchResumeFilter,
+    automationFilter,
+    createdFrom: createdRange.from,
+    createdTo: createdRange.to,
   });
 
   const onDeleteJob = async (jobId: string) => {
@@ -173,7 +195,12 @@ function JobsContainer({
       locationValue: locationFilter || undefined,
       sourceValue: sourceFilter || undefined,
       matchResumeId: matchResumeFilter || undefined,
+      automationId: automationFilter || undefined,
       appliedOnly: appliedFilter || undefined,
+      // Same boundaries the list was loaded with, so "export" honours the
+      // Matched CV and the date together rather than one or the other.
+      createdFrom: createdRange.from,
+      createdTo: createdRange.to,
     });
 
   return (
@@ -201,6 +228,16 @@ function JobsContainer({
           onSourceFilterChange={selectSourceFilter}
           matchResumeFilter={matchResumeFilter}
           onMatchResumeFilterChange={selectMatchResumeFilter}
+          automationLabel={automationLabel}
+          onClearAutomationFilter={clearAutomationFilter}
+          automationFilter={automationFilter}
+          onAutomationFilterChange={selectAutomationFilter}
+          filterAutomations={filterAutomations}
+          dateFilter={dateFilter}
+          dateLabel={dateLabel}
+          onDateFilterChange={selectDateFilter}
+          onClearDateFilter={clearDateFilter}
+          filterYears={filterYears}
           onReload={() => loadJobs(1, filterKey, searchTerm || undefined)}
           searchTerm={searchTerm}
           onSearchTermChange={setSearchTerm}

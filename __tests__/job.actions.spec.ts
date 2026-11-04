@@ -261,6 +261,146 @@ describe("jobActions", () => {
       });
     });
 
+    describe("automation filter", () => {
+      const seed = async () => {
+        (getCurrentUser as any).mockResolvedValue(mockUser);
+        const { data, total } = await getMockJobsList(1, 10);
+        (prisma.job.findMany as any).mockResolvedValue(data);
+        (prisma.job.count as any).mockResolvedValue(total);
+      };
+      const whereOf = () =>
+        (prisma.job.findMany as any).mock.calls[0][0].where;
+
+      it("should filter on the denormalized automationId", async () => {
+        await seed();
+
+        await getJobsList(
+          1, 10, undefined, undefined, undefined, undefined, undefined,
+          undefined, undefined, undefined,
+          { automationId: "automation-1" },
+        );
+
+        // Scalar equality rather than a relation filter — covered by the
+        // [userId, automationId] index, so no join is needed.
+        expect(whereOf().automationId).toBe("automation-1");
+      });
+
+      it("should combine the automation with the matched CV and the date", async () => {
+        await seed();
+
+        await getJobsList(
+          1, 10, undefined, undefined, undefined, undefined, undefined,
+          undefined, undefined, "resume-2",
+          {
+            automationId: "automation-1",
+            createdFrom: "2026-11-01T00:00:00.000Z",
+            createdTo: "2026-12-01T00:00:00.000Z",
+          },
+        );
+
+        const where = whereOf();
+        expect(where.matchResumeId).toBe("resume-2");
+        expect(where.automationId).toBe("automation-1");
+        expect(where.createdAt).toEqual({
+          gte: new Date("2026-11-01T00:00:00.000Z"),
+          lt: new Date("2026-12-01T00:00:00.000Z"),
+        });
+      });
+
+      it("should leave automationId unset when no automation filter is given", async () => {
+        await seed();
+
+        await getJobsList(1, 10);
+
+        expect("automationId" in whereOf()).toBe(false);
+      });
+    });
+
+    describe("created date range", () => {
+      const seed = async () => {
+        (getCurrentUser as any).mockResolvedValue(mockUser);
+        const { data, total } = await getMockJobsList(1, 10);
+        (prisma.job.findMany as any).mockResolvedValue(data);
+        (prisma.job.count as any).mockResolvedValue(total);
+      };
+      const whereOf = () =>
+        (prisma.job.findMany as any).mock.calls[0][0].where;
+
+      it("should turn the 11th argument into a half-open createdAt window", async () => {
+        await seed();
+
+        await getJobsList(
+          1, 10, undefined, undefined, undefined, undefined, undefined,
+          undefined, undefined, undefined,
+          {
+            createdFrom: "2026-11-04T00:00:00.000Z",
+            createdTo: "2026-11-05T00:00:00.000Z",
+          },
+        );
+
+        expect(whereOf().createdAt).toEqual({
+          gte: new Date("2026-11-04T00:00:00.000Z"),
+          lt: new Date("2026-11-05T00:00:00.000Z"),
+        });
+      });
+
+      it("should accept an open-ended window", async () => {
+        await seed();
+
+        await getJobsList(
+          1, 10, undefined, undefined, undefined, undefined, undefined,
+          undefined, undefined, undefined,
+          { createdFrom: "2026-01-01T00:00:00.000Z" },
+        );
+
+        expect(whereOf().createdAt).toEqual({
+          gte: new Date("2026-01-01T00:00:00.000Z"),
+        });
+      });
+
+      it("should drop an unparseable boundary rather than hand Prisma an Invalid Date", async () => {
+        await seed();
+
+        await getJobsList(
+          1, 10, undefined, undefined, undefined, undefined, undefined,
+          undefined, undefined, undefined,
+          { createdFrom: "not-a-date", createdTo: "also-not" },
+        );
+
+        expect("createdAt" in whereOf()).toBe(false);
+      });
+
+      it("should leave createdAt unset when no range is given", async () => {
+        await seed();
+
+        await getJobsList(1, 10);
+
+        expect("createdAt" in whereOf()).toBe(false);
+      });
+
+      it("should combine the range with the matched CV filter", async () => {
+        await seed();
+
+        await getJobsList(
+          1, 10, undefined, undefined, undefined, undefined, undefined,
+          undefined, undefined, "resume-2",
+          {
+            createdFrom: "2026-11-01T00:00:00.000Z",
+            createdTo: "2026-12-01T00:00:00.000Z",
+          },
+        );
+
+        const where = whereOf();
+        // Both constraints, ANDed by Prisma's default object semantics —
+        // neither filter may quietly widen the other.
+        expect(where.matchResumeId).toBe("resume-2");
+        expect(where.createdAt).toEqual({
+          gte: new Date("2026-11-01T00:00:00.000Z"),
+          lt: new Date("2026-12-01T00:00:00.000Z"),
+        });
+      });
+    });
+
     describe("search functionality", () => {
       it("should build OR clause when search parameter is provided", async () => {
         (getCurrentUser as any).mockResolvedValue(mockUser);
@@ -835,6 +975,38 @@ describe("jobActions", () => {
       expect(where.JobSource).toEqual({ value: "indeed" });
       expect(where.matchResumeId).toBe("resume-2");
       expect(where.applied).toBe(true);
+    });
+
+    it("should narrow the export to the created window as well as the CV", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      (prisma.job.findMany as any).mockResolvedValue([]);
+
+      // This is the user-visible promise: filter by Matched CV and a day, then
+      // export, and get exactly those rows.
+      await drain(
+        getJobsIterator({
+          matchResumeId: "resume-2",
+          createdFrom: "2026-11-04T00:00:00.000Z",
+          createdTo: "2026-11-05T00:00:00.000Z",
+        }),
+      );
+
+      const where = (prisma.job.findMany as any).mock.calls[0][0].where;
+      expect(where.matchResumeId).toBe("resume-2");
+      expect(where.createdAt).toEqual({
+        gte: new Date("2026-11-04T00:00:00.000Z"),
+        lt: new Date("2026-11-05T00:00:00.000Z"),
+      });
+    });
+
+    it("should narrow the export to a single automation", async () => {
+      (getCurrentUser as any).mockResolvedValue(mockUser);
+      (prisma.job.findMany as any).mockResolvedValue([]);
+
+      await drain(getJobsIterator({ automationId: "automation-1" }));
+
+      const where = (prisma.job.findMany as any).mock.calls[0][0].where;
+      expect(where.automationId).toBe("automation-1");
     });
 
     it("should scope to the user only when no filters are given", async () => {

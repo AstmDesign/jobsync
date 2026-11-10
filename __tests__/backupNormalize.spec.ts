@@ -7,6 +7,7 @@ import {
   normalizeAutomation,
 } from "@/lib/backup/normalize";
 import { APP_CONSTANTS } from "@/lib/constants";
+import { scheduleZoneParts } from "@/lib/scraper/schedule";
 
 describe("safeEntryName", () => {
   it("reduces a traversal path to its basename", () => {
@@ -133,7 +134,9 @@ describe("normalizeAutomation", () => {
     });
     expect(row.status).toBe("active");
     expect(row.nextRunAt!.getTime()).toBeGreaterThan(Date.now());
-    expect(row.nextRunAt!.getHours()).toBe(9);
+    // Read on the Cairo clock, not the host's: a stored slot is a Cairo
+    // wall-clock reading, and vitest doesn't pin TZ.
+    expect(scheduleZoneParts(row.nextRunAt!).hour).toBe(9);
   });
 
   it("recomputes even when nextRunAt is null", () => {
@@ -142,7 +145,7 @@ describe("normalizeAutomation", () => {
       scheduleHour: 14,
       nextRunAt: null as Date | null,
     });
-    expect(row.nextRunAt!.getHours()).toBe(14);
+    expect(scheduleZoneParts(row.nextRunAt!).hour).toBe(14);
   });
 
   it("leaves a paused automation without a next run", () => {
@@ -152,5 +155,29 @@ describe("normalizeAutomation", () => {
       nextRunAt: new Date("2020-01-01T09:00:00"),
     });
     expect(row.nextRunAt).toBeNull();
+  });
+
+  it("keeps a half-hour slot on the half hour", () => {
+    const row = normalizeAutomation({
+      status: "active",
+      scheduleHour: 9,
+      scheduleMinute: 30,
+      nextRunAt: null as Date | null,
+    });
+    expect(scheduleZoneParts(row.nextRunAt!)).toMatchObject({
+      hour: 9,
+      minute: 30,
+    });
+  });
+
+  // A backup taken before the column existed carries no minute at all, and
+  // every slot it recorded was on the hour.
+  it("treats a missing minute as the top of the hour", () => {
+    const row = normalizeAutomation({
+      status: "active",
+      scheduleHour: 9,
+      nextRunAt: null as Date | null,
+    });
+    expect(scheduleZoneParts(row.nextRunAt!).minute).toBe(0);
   });
 });

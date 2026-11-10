@@ -104,3 +104,42 @@ describe("CreateAutomationSchema conditional validation", () => {
     expect(result.success).toBe(true);
   });
 });
+
+// The picker only offers :00 and :30, so the schema is deliberately narrower
+// than the column: a slot the UI can never render back is worse than a reject.
+describe("CreateAutomationSchema schedule minute", () => {
+  const greenhouse = {
+    ...base,
+    jobBoard: "greenhouse",
+    sourceConfig: {
+      greenhouse: { companies: [{ name: "Anthropic", token: "anthropic" }] },
+    },
+  };
+
+  // The schema deliberately does not carry a zod .default() here — that would
+  // make its input and output types diverge and break the wizard's resolver
+  // typing. createAutomation resolves a missing minute to 0 instead.
+  it("accepts a missing minute and leaves it unset", () => {
+    const result = CreateAutomationSchema.safeParse(greenhouse);
+    expect(result.success).toBe(true);
+    expect(result.data!.scheduleMinute).toBeUndefined();
+  });
+
+  it("accepts 30", () => {
+    const result = CreateAutomationSchema.safeParse({
+      ...greenhouse,
+      scheduleMinute: 30,
+    });
+    expect(result.success).toBe(true);
+    expect(result.data!.scheduleMinute).toBe(30);
+  });
+
+  it("rejects a minute off the grid", () => {
+    for (const scheduleMinute of [15, 45, 59, -1]) {
+      expect(
+        CreateAutomationSchema.safeParse({ ...greenhouse, scheduleMinute })
+          .success,
+      ).toBe(false);
+    }
+  });
+});

@@ -180,6 +180,9 @@ const Automation = z.object({
   resumeId: id,
   matchThreshold: int,
   scheduleHour: int,
+  // Optional with a default, so a backup written before the column existed
+  // still imports — those slots were all on the hour.
+  scheduleMinute: int.optional().default(0),
   nextRunAt: optDt,
   lastRunAt: optDt,
   status: str,

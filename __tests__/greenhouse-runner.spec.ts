@@ -107,6 +107,7 @@ const automation: Automation = {
   resumeId: "resume1",
   matchThreshold: 80,
   scheduleHour: 8,
+  scheduleMinute: 0,
   nextRunAt: null,
   lastRunAt: null,
   status: "active",
@@ -123,7 +124,10 @@ describe("runAutomation (greenhouse)", () => {
       id: "run1",
       automationId: "auto1",
     });
-    (prisma.automation.findUnique as any).mockResolvedValue({ scheduleHour: 8 });
+    (prisma.automation.findUnique as any).mockResolvedValue({
+      scheduleHour: 8,
+      scheduleMinute: 0,
+    });
     (prisma.automation.update as any).mockResolvedValue({});
     (prisma.userSettings.findUnique as any).mockResolvedValue(null);
     (prisma.resume.findUnique as any).mockResolvedValue({

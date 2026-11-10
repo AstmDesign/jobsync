@@ -150,6 +150,8 @@ export interface Automation {
   resumeId: string;
   matchThreshold: number;
   scheduleHour: number;
+  // 0 or 30 — see the Automation model in schema.prisma.
+  scheduleMinute: number;
   nextRunAt: Date | null;
   lastRunAt: Date | null;
   status: AutomationStatus;

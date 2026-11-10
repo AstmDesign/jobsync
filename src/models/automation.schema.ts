@@ -146,6 +146,17 @@ export const CreateAutomationSchema = z
     resumeId: z.string().uuid("Invalid resume"),
     matchThreshold: z.number().min(0).max(100),
     scheduleHour: z.number().min(0).max(23),
+    // Half-hour grid. Narrower than min(0).max(59) on purpose: the picker only
+    // offers :00 and :30, and a rejected 17 is a better outcome than a slot no
+    // UI can ever show back to the user.
+    //
+    // Optional rather than .default(0): a zod default makes the schema's input
+    // and output types diverge, and this schema is also the wizard's resolver —
+    // useForm<CreateAutomationInput> then stops matching the resolver's input
+    // type and TS falls back to the untyped overload, breaking handleSubmit.
+    // A missing minute means the top of the hour; createAutomation and the
+    // column default both resolve it to 0.
+    scheduleMinute: z.union([z.literal(0), z.literal(30)]).optional(),
   })
   .superRefine(validateSourceConfig);
 
@@ -159,6 +170,7 @@ export const UpdateAutomationSchema = z
     resumeId: z.string().uuid("Invalid resume").optional(),
     matchThreshold: z.number().min(0).max(100).optional(),
     scheduleHour: z.number().min(0).max(23).optional(),
+    scheduleMinute: z.union([z.literal(0), z.literal(30)]).optional(),
   })
   .superRefine(validateSourceConfig);
 

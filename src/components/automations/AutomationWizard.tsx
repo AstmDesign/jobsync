@@ -47,7 +47,7 @@ export function AutomationWizard({
     isSubmitting,
     atsKey,
     atsConfig,
-    takenHours,
+    slotCounts,
     canGoNext,
     nextStep,
     prevStep,
@@ -125,7 +125,7 @@ export function AutomationWizard({
               </div>
 
               <div className={step === 4 ? "space-y-4" : "hidden"}>
-                <StepSchedule form={form} takenHours={takenHours} />
+                <StepSchedule form={form} slotCounts={slotCounts} />
               </div>
 
               <div className={step === 5 ? "space-y-4" : "hidden"}>

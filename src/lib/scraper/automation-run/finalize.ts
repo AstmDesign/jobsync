@@ -35,17 +35,22 @@ export async function finalizeRun(
     },
   });
 
+  // Read the slot once rather than inline, so the hour and the minute come
+  // from the same row — reading them separately could straddle an edit.
+  const slot = await db.automation.findUnique({
+    where: { id: run.automationId },
+    select: { scheduleHour: true, scheduleMinute: true },
+  });
+
   await db.automation.update({
     where: { id: run.automationId },
     data: {
       lastRunAt: new Date(),
+      // `?? 8` rather than `|| 8`: hour 0 is a legitimate slot that `||` would
+      // quietly rewrite to 08:00.
       nextRunAt: calculateNextRunAt(
-        (
-          await db.automation.findUnique({
-            where: { id: run.automationId },
-            select: { scheduleHour: true },
-          })
-        )?.scheduleHour || 8,
+        slot?.scheduleHour ?? 8,
+        slot?.scheduleMinute ?? 0,
       ),
     },
   });

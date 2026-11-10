@@ -27,10 +27,35 @@ export const STEPS = [
   { id: "review", title: "Review", description: "Confirm settings" },
 ];
 
-export const HOURS = Array.from({ length: 24 }, (_, i) => ({
-  value: i,
-  label: `${i.toString().padStart(2, "0")}:00`,
-}));
+// 48 half-hour slots, 00:00 through 23:30. `key` is what the Select binds to:
+// Radix SelectItem values are strings, and "hour:minute" round-trips to the
+// two numbers without a second lookup table.
+export interface TimeSlot {
+  key: string;
+  hour: number;
+  minute: number;
+  label: string;
+}
+
+export const slotKey = (hour: number, minute: number) => `${hour}:${minute}`;
+
+export const TIME_SLOTS: TimeSlot[] = Array.from({ length: 48 }, (_, i) => {
+  const hour = Math.floor(i / 2);
+  const minute = i % 2 === 0 ? 0 : 30;
+  return {
+    key: slotKey(hour, minute),
+    hour,
+    minute,
+    label: `${hour.toString().padStart(2, "0")}:${minute
+      .toString()
+      .padStart(2, "0")}`,
+  };
+});
+
+export function parseSlotKey(key: string): { hour: number; minute: number } {
+  const [hour, minute] = key.split(":").map(Number);
+  return { hour, minute };
+}
 
 export function parseEditSourceConfig(
   sc?: string | null,

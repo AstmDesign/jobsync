@@ -135,6 +135,7 @@ export async function POST(
       resumeId: automation.resumeId,
       matchThreshold: automation.matchThreshold,
       scheduleHour: automation.scheduleHour,
+      scheduleMinute: automation.scheduleMinute,
       nextRunAt: automation.nextRunAt,
       lastRunAt: automation.lastRunAt,
       status: automation.status as "active" | "paused",

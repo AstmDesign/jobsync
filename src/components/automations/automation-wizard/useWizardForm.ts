@@ -19,6 +19,7 @@ import {
   EMPTY_ATS,
   STEPS,
   parseEditSourceConfig,
+  slotKey,
   type AtsKey,
 } from "./wizardConfig";
 
@@ -52,6 +53,7 @@ export function useWizardForm({
       resumeId: editAutomation?.resumeId ?? "",
       matchThreshold: editAutomation?.matchThreshold ?? 80,
       scheduleHour: editAutomation?.scheduleHour ?? 8,
+      scheduleMinute: (editAutomation?.scheduleMinute ?? 0) as 0 | 30,
     },
   });
 
@@ -76,6 +78,7 @@ export function useWizardForm({
         resumeId: editAutomation?.resumeId ?? "",
         matchThreshold: editAutomation?.matchThreshold ?? 80,
         scheduleHour: editAutomation?.scheduleHour ?? 8,
+      scheduleMinute: (editAutomation?.scheduleMinute ?? 0) as 0 | 30,
       });
       setStep(0);
     }
@@ -135,25 +138,18 @@ export function useWizardForm({
     }
   };
 
-  // Hours already claimed by the user's other automations. Only one automation
-  // may run per hourly slot, so the schedule step rejects a taken hour.
-  const takenHours = new Set(
-    automations
-      .filter((a) => a.id !== editAutomation?.id)
-      .map((a) => a.scheduleHour),
-  );
+  // How many of the user's *other* automations sit in each half-hour slot.
+  // A slot is never blocked — everything in one runs serially, oldest first —
+  // so this is shown as a count next to the time rather than as a rejection.
+  const slotCounts = automations
+    .filter((a) => a.id !== editAutomation?.id)
+    .reduce((counts, a) => {
+      const key = slotKey(a.scheduleHour, a.scheduleMinute ?? 0);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      return counts;
+    }, new Map<string, number>());
 
   const nextStep = () => {
-    if (step === 4 && takenHours.has(formValues.scheduleHour)) {
-      form.setError("scheduleHour", {
-        message: `Another automation already runs at ${(
-          formValues.scheduleHour ?? 8
-        )
-          .toString()
-          .padStart(2, "0")}:00. Please choose a different time.`,
-      });
-      return;
-    }
     if (step < STEPS.length - 1) {
       setStep(step + 1);
     }
@@ -178,7 +174,7 @@ export function useWizardForm({
     isSubmitting,
     atsKey,
     atsConfig,
-    takenHours,
+    slotCounts,
     canGoNext,
     nextStep,
     prevStep,

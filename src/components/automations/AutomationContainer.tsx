@@ -10,6 +10,7 @@ import { toastError } from "@/lib/toast";
 import { getAutomationsList } from "@/actions/automation.actions";
 import type { AutomationWithResume } from "@/models/automation.model";
 import { AutomationList } from "./AutomationList";
+import { AutomationScheduleChart } from "./AutomationScheduleChart";
 import { AutomationWizard } from "./AutomationWizard";
 import Loading from "@/components/Loading";
 import type { WizardResume } from "./automation-wizard/wizardConfig";
@@ -76,6 +77,11 @@ export function AutomationContainer({ resumes }: AutomationContainerProps) {
 
   return (
     <>
+      {/* Fed from the list state already loaded above rather than a second
+          query — the chart is a view of the same records. Hidden while loading
+          so it doesn't flash an empty frame. */}
+      {!loading && <AutomationScheduleChart automations={automations} />}
+
       <Card>
         <ResponsiveCardHeader>
           <CardTitle>Automations</CardTitle>

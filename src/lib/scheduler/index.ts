@@ -3,12 +3,28 @@ import { SCHEDULER_CONSTANTS } from "@/lib/constants";
 import db from "@/lib/db";
 import { runAutomation, AutomationAlreadyRunningError } from "@/lib/scraper";
 import { RETIRED_BOARDS, type JobBoard } from "@/models/automation.model";
+import { SCHEDULE_TIMEZONE } from "@/lib/scraper/schedule";
 import { log } from "@/lib/telemetry";
 
 let scheduledTask: ScheduledTask | null = null;
 
+// Several automations can now share a slot, and the loop below runs them one
+// after another. A chain can therefore outlast the tick interval, so this
+// guard keeps the next tick from starting a second chain over the top of the
+// first — the whole point of "run them in series".
+let chainInFlight = false;
+
 async function runDueAutomations() {
   const now = new Date();
+
+  if (chainInFlight) {
+    log.info("[Scheduler] Previous chain still running, skipping tick", {
+      "scheduler.checked_at": now.toISOString(),
+    });
+    return;
+  }
+  chainInFlight = true;
+
   log.info("[Scheduler] Checking for due automations", {
     "scheduler.checked_at": now.toISOString(),
   });
@@ -27,6 +43,10 @@ async function runDueAutomations() {
       include: {
         resume: true,
       },
+      // Oldest first, so a shared slot has a stable, explainable order: the
+      // automation you set up first runs first. Without this the order is
+      // whatever SQLite happens to return.
+      orderBy: { createdAt: "asc" },
     });
 
     if (dueAutomations.length === 0) {
@@ -89,6 +109,7 @@ async function runDueAutomations() {
           resumeId: automation.resumeId,
           matchThreshold: automation.matchThreshold,
           scheduleHour: automation.scheduleHour,
+          scheduleMinute: automation.scheduleMinute,
           nextRunAt: automation.nextRunAt,
           lastRunAt: automation.lastRunAt,
           status: automation.status as "active" | "paused",
@@ -121,6 +142,10 @@ async function runDueAutomations() {
     log.error("[Scheduler] Error running due automations", {
       error: String(error),
     });
+  } finally {
+    // Must release even on the error path, or one bad tick wedges the
+    // scheduler until the process restarts.
+    chainInFlight = false;
   }
 }
 
@@ -146,8 +171,12 @@ export function startScheduler() {
 
   log.info("[Scheduler] Starting", { "scheduler.cron": cronExpression });
 
+  // Pinned to the schedule zone rather than process.env.TZ: slots are stored
+  // as Cairo wall-clock readings, so the tick that fires them belongs on the
+  // same clock. (With a */5 expression the zone barely matters, but it would
+  // the moment anyone tightens the expression to specific hours.)
   scheduledTask = cron.schedule(cronExpression, runDueAutomations, {
-    timezone: process.env.TZ || "UTC",
+    timezone: SCHEDULE_TIMEZONE,
   });
 
   log.info("[Scheduler] Started successfully");

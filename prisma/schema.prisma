@@ -569,9 +569,13 @@ model Automation {
   resume         Resume @relation(fields: [resumeId], references: [id])
   matchThreshold Int    @default(80)
 
-  scheduleHour Int
-  nextRunAt    DateTime?
-  lastRunAt    DateTime?
+  // Daily run slot on a 30-minute grid: scheduleMinute is 0 or 30. Several
+  // automations may share a slot — the scheduler runs them one after another,
+  // oldest first — so there is deliberately no unique constraint here.
+  scheduleHour   Int
+  scheduleMinute Int       @default(0)
+  nextRunAt      DateTime?
+  lastRunAt      DateTime?
 
   status String @default("active")
 

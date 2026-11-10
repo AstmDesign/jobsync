@@ -6,6 +6,7 @@ import { APP_CONSTANTS, CONTACT_ROLES } from "@/lib/constants";
 import { buildBackupZip } from "@/lib/backup/export";
 import { importBackup } from "@/lib/backup/import";
 import { listSnapshots, readSnapshot } from "@/lib/backup/snapshot";
+import { scheduleZoneParts } from "@/lib/scraper/schedule";
 import { seedAccount } from "./helpers/backupTestDb";
 
 // Async so the helper can be pulled in with a dynamic import — `require` is
@@ -176,6 +177,7 @@ async function seedFullAccount() {
       location: "Remote",
       resumeId: resume.id,
       scheduleHour: 9,
+      scheduleMinute: 30,
       nextRunAt: new Date("2020-01-01T09:00:00"),
       status: "active",
     },
@@ -284,6 +286,11 @@ describe("backup round trip", () => {
     const automation = await prisma.automation.findFirstOrThrow({ where: { userId } });
     expect(automation.status).toBe("active");
     expect(automation.nextRunAt!.getTime()).toBeGreaterThan(Date.now());
+    // The half-hour slot survives the round trip, and the recomputed next run
+    // lands on it rather than snapping back to the top of the hour.
+    expect(automation.scheduleMinute).toBe(30);
+    // On the Cairo clock, since that is the zone a slot is stored in.
+    expect(scheduleZoneParts(automation.nextRunAt!).minute).toBe(30);
 
     // The wipe set is honoured in both directions.
     expect(await prisma.apiKey.count({ where: { userId } })).toBe(1);

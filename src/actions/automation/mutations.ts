@@ -71,26 +71,18 @@ export async function createAutomation(input: CreateAutomationInput): Promise<{
       };
     }
 
-    const scheduleClash = await db.automation.findFirst({
-      where: { userId: user.id, scheduleHour: validated.scheduleHour },
-      select: { id: true },
-    });
-    if (scheduleClash) {
-      return {
-        success: false,
-        message: `Another automation already runs at ${validated.scheduleHour
-          .toString()
-          .padStart(2, "0")}:00. Please choose a different time.`,
-      };
-    }
-
+    // No slot-clash check: a slot may hold any number of automations, and the
+    // scheduler runs the ones sharing it serially, oldest first.
     const resumeError = await validateAutomationResume(
       validated.resumeId,
       user.id,
     );
     if (resumeError) return resumeError;
 
-    const nextRunAt = calculateNextRunAt(validated.scheduleHour);
+    const nextRunAt = calculateNextRunAt(
+      validated.scheduleHour,
+      validated.scheduleMinute,
+    );
 
     const automation = await db.automation.create({
       data: {
@@ -105,6 +97,9 @@ export async function createAutomation(input: CreateAutomationInput): Promise<{
         resumeId: validated.resumeId,
         matchThreshold: validated.matchThreshold,
         scheduleHour: validated.scheduleHour,
+        // The schema leaves the minute optional (see the comment there); a
+        // caller that omits it means the top of the hour.
+        scheduleMinute: validated.scheduleMinute ?? 0,
         nextRunAt,
         status: "active",
       },
@@ -174,24 +169,18 @@ export async function updateAutomation(
       updateData.location = validated.location ?? "";
     }
 
-    if (validated.scheduleHour !== undefined) {
-      const scheduleClash = await db.automation.findFirst({
-        where: {
-          userId: user.id,
-          scheduleHour: validated.scheduleHour,
-          id: { not: id },
-        },
-        select: { id: true },
-      });
-      if (scheduleClash) {
-        return {
-          success: false,
-          message: `Another automation already runs at ${validated.scheduleHour
-            .toString()
-            .padStart(2, "0")}:00. Please choose a different time.`,
-        };
-      }
-      updateData.nextRunAt = calculateNextRunAt(validated.scheduleHour);
+    // Either half of the slot moving means the next run has to be recomputed,
+    // and each half falls back to the stored value so changing only the minute
+    // doesn't reset the hour. No clash check: a slot may hold any number of
+    // automations, which the scheduler then runs serially, oldest first.
+    if (
+      validated.scheduleHour !== undefined ||
+      validated.scheduleMinute !== undefined
+    ) {
+      updateData.nextRunAt = calculateNextRunAt(
+        validated.scheduleHour ?? existing.scheduleHour,
+        validated.scheduleMinute ?? existing.scheduleMinute,
+      );
     }
 
     const automation = await db.automation.update({
@@ -294,7 +283,10 @@ export async function resumeAutomation(id: string): Promise<{
       return { success: false, message: "Automation not found" };
     }
 
-    const nextRunAt = calculateNextRunAt(automation.scheduleHour);
+    const nextRunAt = calculateNextRunAt(
+      automation.scheduleHour,
+      automation.scheduleMinute,
+    );
 
     const updated = await db.automation.update({
       where: { id },

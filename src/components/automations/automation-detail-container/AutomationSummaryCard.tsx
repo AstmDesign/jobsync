@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { format } from "date-fns";
 import { AlertTriangle, Clock, FileText, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AutomationWithResume } from "@/models/automation.model";
+import {
+  formatScheduleInstant,
+  formatScheduleTime,
+  SCHEDULE_TIMEZONE_LABEL,
+} from "@/lib/scraper/schedule";
 import { AutomationSearchConfig } from "./AutomationSearchConfig";
 
 interface AutomationSummaryCardProps {
@@ -56,10 +60,16 @@ export function AutomationSummaryCard({
             <p className="font-medium">{automation.matchThreshold}%</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Schedule</p>
+            <p className="text-sm text-muted-foreground">
+              Schedule ({SCHEDULE_TIMEZONE_LABEL})
+            </p>
             <p className="font-medium flex items-center gap-1">
               <Clock className="h-4 w-4" />
-              {automation.scheduleHour.toString().padStart(2, "0")}:00 daily
+              {formatScheduleTime(
+                automation.scheduleHour,
+                automation.scheduleMinute,
+              )}{" "}
+              daily
             </p>
           </div>
           <div>
@@ -83,7 +93,7 @@ export function AutomationSummaryCard({
             <p className="text-sm text-muted-foreground">Next Run</p>
             <p className="font-medium">
               {automation.nextRunAt && automation.status === "active"
-                ? format(new Date(automation.nextRunAt), "MMM d, h:mm a")
+                ? formatScheduleInstant(automation.nextRunAt)
                 : "-"}
             </p>
           </div>
@@ -91,7 +101,7 @@ export function AutomationSummaryCard({
             <p className="text-sm text-muted-foreground">Last Run</p>
             <p className="font-medium">
               {automation.lastRunAt
-                ? format(new Date(automation.lastRunAt), "MMM d, h:mm a")
+                ? formatScheduleInstant(automation.lastRunAt)
                 : "Never"}
             </p>
           </div>

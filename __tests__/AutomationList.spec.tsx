@@ -29,6 +29,7 @@ function makeAutomation(
     resumeId: "resume-1",
     matchThreshold: 70,
     scheduleHour: 9,
+    scheduleMinute: 0,
     nextRunAt: null,
     lastRunAt: null,
     status: "active",

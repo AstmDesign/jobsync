@@ -328,7 +328,10 @@ export const APP_CONSTANTS = {
 
 export const SCHEDULER_CONSTANTS = {
   ENABLED: true,
-  CRON_EXPRESSION: "0 * * * *", // Every hour at minute 0
+  // Every 5 minutes. Slots sit on a 30-minute grid, so an hourly tick would
+  // never fire a :30 schedule on time; 5 minutes also lets a chain that
+  // overran its slot resume promptly instead of waiting out the half hour.
+  CRON_EXPRESSION: "*/5 * * * *",
   STALE_RUN_TIMEOUT_MS: 15 * 60 * 1000, // 15 min; reaper cutoff for stuck runs
 } as const;
 

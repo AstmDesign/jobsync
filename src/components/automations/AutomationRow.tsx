@@ -1,6 +1,5 @@
 "use client";
 
-import { format } from "date-fns";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +25,11 @@ import {
 import type { AutomationWithResume } from "@/models/automation.model";
 import { isRetiredBoard } from "@/models/automation.model";
 import { APP_CONSTANTS } from "@/lib/constants";
+import {
+  formatScheduleInstant,
+  formatScheduleTime,
+  SCHEDULE_TIMEZONE_LABEL,
+} from "@/lib/scraper/schedule";
 
 // One automation card. Split out of AutomationList when that list became
 // grouped — the list now owns grouping and collapse state, this owns a row.
@@ -155,7 +159,11 @@ export function AutomationRow({
           <div className="flex items-center gap-1">
             <Clock className="h-4 w-4" />
             <span>
-              {automation.scheduleHour.toString().padStart(2, "0")}:00 daily
+              {formatScheduleTime(
+                automation.scheduleHour,
+                automation.scheduleMinute,
+              )}{" "}
+              daily ({SCHEDULE_TIMEZONE_LABEL})
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -166,13 +174,12 @@ export function AutomationRow({
             automation.nextRunAt &&
             automation.status === "active" && (
               <span className="text-xs">
-                Next:{" "}
-                {format(new Date(automation.nextRunAt), "MMM d, h:mm a")}
+                Next: {formatScheduleInstant(automation.nextRunAt)}
               </span>
             )}
           {automation.lastRunAt && (
             <span className="text-xs">
-              Last: {format(new Date(automation.lastRunAt), "MMM d, h:mm a")}
+              Last: {formatScheduleInstant(automation.lastRunAt)}
             </span>
           )}
         </div>

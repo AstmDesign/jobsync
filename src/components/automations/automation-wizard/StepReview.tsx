@@ -1,6 +1,10 @@
 "use client";
 
 import { APP_CONSTANTS } from "@/lib/constants";
+import {
+  formatScheduleTime,
+  SCHEDULE_TIMEZONE_LABEL,
+} from "@/lib/scraper/schedule";
 import type { CreateAutomationInput } from "@/models/automation.schema";
 import type { AtsConfigValue } from "../AtsSearchStep";
 import type { WizardResume } from "./wizardConfig";
@@ -75,10 +79,15 @@ export function StepReview({
         <span className="font-medium">{formValues.matchThreshold ?? 80}%</span>
       </div>
       <div className="flex justify-between">
-        <span className="text-muted-foreground">Schedule</span>
+        <span className="text-muted-foreground">
+          Schedule ({SCHEDULE_TIMEZONE_LABEL})
+        </span>
         <span className="font-medium">
           Daily at{" "}
-          {(formValues.scheduleHour ?? 8).toString().padStart(2, "0")}:00
+          {formatScheduleTime(
+            formValues.scheduleHour ?? 8,
+            formValues.scheduleMinute ?? 0,
+          )}
         </span>
       </div>
     </div>

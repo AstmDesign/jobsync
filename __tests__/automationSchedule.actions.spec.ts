@@ -1,6 +1,15 @@
 import { createAutomation, updateAutomation } from "@/actions/automation.actions";
 import { getCurrentUser } from "@/utils/user.utils";
 import { PrismaClient } from "@prisma/client";
+import { scheduleZoneParts } from "@/lib/scraper/schedule";
+
+// nextRunAt is an instant; the slot it represents is a Cairo wall-clock
+// reading. getHours() would read the host zone instead, and vitest.config.ts
+// doesn't pin TZ — so always go through scheduleZoneParts here.
+function cairoSlot(instant: Date) {
+  const parts = scheduleZoneParts(instant);
+  return { hour: parts.hour, minute: parts.minute };
+}
 
 const prisma = new PrismaClient();
 
@@ -46,11 +55,15 @@ function baseInput(overrides: Record<string, unknown> = {}) {
     resumeId: RESUME_ID,
     matchThreshold: 80,
     scheduleHour: 8,
+    scheduleMinute: 0,
     ...overrides,
   } as any;
 }
 
-describe("createAutomation schedule-hour uniqueness", () => {
+// A slot used to be exclusive. It no longer is: any number of automations may
+// share one, and the scheduler runs them serially, oldest first. These tests
+// pin that down so the clash guard doesn't get reintroduced by accident.
+describe("createAutomation shared schedule slots", () => {
   const mockUser = { id: "user-1" };
 
   beforeEach(() => {
@@ -64,36 +77,49 @@ describe("createAutomation schedule-hour uniqueness", () => {
     (prisma.automation.create as any).mockResolvedValue({ id: "auto-1" });
   });
 
-  it("rejects a create when another automation already uses the same hour", async () => {
+  it("creates even when another automation already sits in the slot", async () => {
+    // Whatever findFirst would have returned is irrelevant now — nothing
+    // queries siblings before the insert.
     (prisma.automation.findFirst as any).mockResolvedValue({ id: "other" });
-
-    const result = await createAutomation(baseInput());
-
-    expect(result.success).toBe(false);
-    expect(result.message).toMatch(/08:00/);
-    expect(prisma.automation.create).not.toHaveBeenCalled();
-  });
-
-  it("scopes the clash check to the current user and chosen hour", async () => {
-    (prisma.automation.findFirst as any).mockResolvedValue(null);
-
-    await createAutomation(baseInput({ scheduleHour: 14 }));
-
-    const where = (prisma.automation.findFirst as any).mock.calls[0][0].where;
-    expect(where).toMatchObject({ userId: "user-1", scheduleHour: 14 });
-  });
-
-  it("creates the automation when the hour is free", async () => {
-    (prisma.automation.findFirst as any).mockResolvedValue(null);
 
     const result = await createAutomation(baseInput());
 
     expect(result.success).toBe(true);
     expect(prisma.automation.create).toHaveBeenCalled();
   });
+
+  it("persists the half-hour slot it was given", async () => {
+    (prisma.automation.findFirst as any).mockResolvedValue(null);
+
+    await createAutomation(baseInput({ scheduleHour: 14, scheduleMinute: 30 }));
+
+    const data = (prisma.automation.create as any).mock.calls[0][0].data;
+    expect(data).toMatchObject({ scheduleHour: 14, scheduleMinute: 30 });
+    expect(cairoSlot(data.nextRunAt)).toEqual({ hour: 14, minute: 30 });
+  });
+
+  it("defaults the minute to the top of the hour", async () => {
+    (prisma.automation.findFirst as any).mockResolvedValue(null);
+
+    const input = baseInput();
+    delete input.scheduleMinute;
+    await createAutomation(input);
+
+    const data = (prisma.automation.create as any).mock.calls[0][0].data;
+    expect(data.scheduleMinute).toBe(0);
+  });
+
+  it("rejects a minute off the 30-minute grid", async () => {
+    (prisma.automation.findFirst as any).mockResolvedValue(null);
+
+    const result = await createAutomation(baseInput({ scheduleMinute: 17 }));
+
+    expect(result.success).toBe(false);
+    expect(prisma.automation.create).not.toHaveBeenCalled();
+  });
 });
 
-describe("updateAutomation schedule-hour uniqueness", () => {
+describe("updateAutomation shared schedule slots", () => {
   const mockUser = { id: "user-1" };
   const AUTO_ID = "auto-1";
 
@@ -105,44 +131,53 @@ describe("updateAutomation schedule-hour uniqueness", () => {
       _count: { ResumeSections: 2 },
     });
     (prisma.automation.update as any).mockResolvedValue({ id: AUTO_ID });
-  });
-
-  it("rejects when another automation already uses the target hour", async () => {
-    (prisma.automation.findFirst as any)
-      .mockResolvedValueOnce({ id: AUTO_ID, scheduleHour: 8 }) // ownership lookup
-      .mockResolvedValueOnce({ id: "sibling" }); // clash check
-
-    const result = await updateAutomation(AUTO_ID, baseInput({ scheduleHour: 9 }));
-
-    expect(result.success).toBe(false);
-    expect(result.message).toMatch(/09:00/);
-    expect(prisma.automation.update).not.toHaveBeenCalled();
-  });
-
-  it("excludes the automation being edited from the clash query", async () => {
-    (prisma.automation.findFirst as any)
-      .mockResolvedValueOnce({ id: AUTO_ID, scheduleHour: 8 })
-      .mockResolvedValueOnce(null);
-
-    await updateAutomation(AUTO_ID, baseInput({ scheduleHour: 8 }));
-
-    const clashWhere = (prisma.automation.findFirst as any).mock.calls[1][0].where;
-    expect(clashWhere).toMatchObject({
-      userId: "user-1",
+    // Only one findFirst left: the ownership lookup.
+    (prisma.automation.findFirst as any).mockResolvedValue({
+      id: AUTO_ID,
+      jobBoard: "greenhouse",
       scheduleHour: 8,
-      id: { not: AUTO_ID },
+      scheduleMinute: 0,
     });
   });
 
-  it("updates when no other automation uses the hour", async () => {
-    (prisma.automation.findFirst as any)
-      .mockResolvedValueOnce({ id: AUTO_ID, scheduleHour: 8 })
-      .mockResolvedValueOnce(null);
-
-    const result = await updateAutomation(AUTO_ID, baseInput({ scheduleHour: 10 }));
+  it("moves into a slot another automation already occupies", async () => {
+    const result = await updateAutomation(
+      AUTO_ID,
+      baseInput({ scheduleHour: 9, scheduleMinute: 30 }),
+    );
 
     expect(result.success).toBe(true);
-    expect(prisma.automation.update).toHaveBeenCalled();
+    const data = (prisma.automation.update as any).mock.calls[0][0].data;
+    expect(data).toMatchObject({ scheduleHour: 9, scheduleMinute: 30 });
+    expect(cairoSlot(data.nextRunAt)).toEqual({ hour: 9, minute: 30 });
+  });
+
+  it("keeps the stored hour when only the minute moves", async () => {
+    await updateAutomation(AUTO_ID, { scheduleMinute: 30 } as any);
+
+    const data = (prisma.automation.update as any).mock.calls[0][0].data;
+    expect(cairoSlot(data.nextRunAt)).toEqual({ hour: 8, minute: 30 });
+  });
+
+  it("keeps the stored minute when only the hour moves", async () => {
+    (prisma.automation.findFirst as any).mockResolvedValue({
+      id: AUTO_ID,
+      jobBoard: "greenhouse",
+      scheduleHour: 8,
+      scheduleMinute: 30,
+    });
+
+    await updateAutomation(AUTO_ID, { scheduleHour: 11 } as any);
+
+    const data = (prisma.automation.update as any).mock.calls[0][0].data;
+    expect(cairoSlot(data.nextRunAt)).toEqual({ hour: 11, minute: 30 });
+  });
+
+  it("leaves nextRunAt alone when the slot didn't move", async () => {
+    await updateAutomation(AUTO_ID, { name: "Renamed" } as any);
+
+    const data = (prisma.automation.update as any).mock.calls[0][0].data;
+    expect(data.nextRunAt).toBeUndefined();
   });
 });
 
